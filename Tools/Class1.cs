@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ModelsAndParams
+namespace Tools
 {
     public class Class1
     {

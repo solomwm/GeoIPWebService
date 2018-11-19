@@ -3,7 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2046
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelsAndParams", "ModelsAndParams\ModelsAndParams.csproj", "{11DE7A80-B1D5-4B25-B311-4753A16D8672}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Database", "ModelsAndParams\Database.csproj", "{11DE7A80-B1D5-4B25-B311-4753A16D8672}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseUpdater", "DatabaseUpdater\DatabaseUpdater.csproj", "{DD1F0EC8-30A8-46A2-A354-38B70E883043}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeoIPWebService", "GeoIPWebService\GeoIPWebService.csproj", "{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tools", "Tools\Tools.csproj", "{A69775D8-BE65-457C-B877-09EE3E123EEF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +21,18 @@ Global
 		{11DE7A80-B1D5-4B25-B311-4753A16D8672}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11DE7A80-B1D5-4B25-B311-4753A16D8672}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{11DE7A80-B1D5-4B25-B311-4753A16D8672}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD1F0EC8-30A8-46A2-A354-38B70E883043}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD1F0EC8-30A8-46A2-A354-38B70E883043}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD1F0EC8-30A8-46A2-A354-38B70E883043}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD1F0EC8-30A8-46A2-A354-38B70E883043}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A69775D8-BE65-457C-B877-09EE3E123EEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A69775D8-BE65-457C-B877-09EE3E123EEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A69775D8-BE65-457C-B877-09EE3E123EEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A69775D8-BE65-457C-B877-09EE3E123EEF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
