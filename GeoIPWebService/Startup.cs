@@ -1,17 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Database;
+﻿using Database;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace GeoIPWebService
 {
@@ -28,11 +21,8 @@ namespace GeoIPWebService
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
-
-            //Добавляем Npgsql (PostgreSQL server) провайдер и DbContext со строкой подключения.
             string connection = Configuration.GetConnectionString("DefaultConnection");
-            services.AddEntityFrameworkNpgsql().AddDbContext<GeoIPDbContext>
-                (options => options.UseSqlServer(connection)).BuildServiceProvider();
+            services.AddDbContext<GeoIPDbContext>(options => options.UseNpgsql(connection));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -42,12 +32,12 @@ namespace GeoIPWebService
             {
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
-                app.UseHsts();
-            }
+            //else
+            //{
+            //    //app.UseHsts();
+            //}
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
             app.UseMvc();
         }
     }
