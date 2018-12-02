@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModelsAndParams\Database.csproj" />
+    <ProjectReference Include="..\Tools\Tools.csproj" />
   </ItemGroup>
 
 </Project>

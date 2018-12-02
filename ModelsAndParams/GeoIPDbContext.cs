@@ -28,6 +28,7 @@ namespace Database
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
            if (connectionString != null) optionsBuilder.UseNpgsql(connectionString);
+           optionsBuilder.EnableSensitiveDataLogging();
         }
     }
 }
