@@ -35,11 +35,10 @@ namespace DatabaseUpdater
                         string blocksIPv4FileName = string.Concat(config.TempFolder, @"\", config.BlocksIPv4_CSV_FileName);
                         DateTime start = DateTime.Now;
                         Console.WriteLine($"Старт обновления: {start}");
-                        //Updater.DatabaseUpdate(db, blocksIPv4FileName, locationsFileName);
-                        Updater.DatabaseRebuild(db, blocksIPv4FileName, locationsFileName, dbCreated);
+                        Updater.DatabaseUpdate(db, blocksIPv4FileName, locationsFileName);
+                        //Updater.DatabaseRebuild(db, blocksIPv4FileName, locationsFileName, dbCreated);
                         DateTime finish = DateTime.Now;
-                        TimeSpan difference = finish - start;
-                        Console.WriteLine($"Затраченное время: {difference}");
+                        Console.WriteLine($"Затраченное время: {finish - start}");
                     }
                 }
                 catch (Exception e)
