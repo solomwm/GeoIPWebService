@@ -31,7 +31,7 @@ namespace DatabaseUpdater
 
                 DateTime start, startNew, start100, finish;
 
-                //Заполняем таблицу CityLocations.
+                //Парсим файл локаций. Создаём сущности CityLocation.
                 start = DateTime.Now;
                 Console.WriteLine($"start parsing locations: {start}");
                 List<CityLocation> locations = ParseAllLocations(locationFileName);
@@ -39,7 +39,7 @@ namespace DatabaseUpdater
                 finish = DateTime.Now;
                 Console.WriteLine($"finish parsing locations from: {finish - start}");
 
-                //Заполняем таблицы BlocksIPv4 и IPsv4.
+                //Парсим файл блоков IP. Создаём сущности BlocksIPv4 и IPv4.
                 start = DateTime.Now;
                 Console.WriteLine($"start parsing block IP's: {start}");
                 List<BlockIPv4> blocks = ParseAllBlocksIPv4(blockIPv4FileName, out List<IPv4> ip_s);
@@ -112,8 +112,8 @@ namespace DatabaseUpdater
             }
         }
         
-        //Обновляет базу, проверяя сущесвующие данные на изменение и добавляя новые.
-        public static void DatabaseUpdate(GeoIPDbContext dbContext, string blockIPv4FileName, string locationFileName)
+        //Обновляет базу, проверяя существующие данные на изменение и добавляя новые.
+        public static void DatabaseUpdate(GeoIPDbContext dbContext, string blockIPv4FileName, string locationFileName, bool quickUpdate)
         {
             try
             {
@@ -135,7 +135,7 @@ namespace DatabaseUpdater
                 //Парсим файл блоков IP. Создаём сущности BlocksIPv4 и IPv4.
                 start = DateTime.Now;
                 Console.WriteLine($"start parsing block IP's: {start}");
-                List<BlockIPv4> blocks = ParseAllBlocksIPv4(blockIPv4FileName, out List<IPv4> ip_s);
+                List<BlockIPv4> blocks = ParseAllBlocksIPv4(blockIPv4FileName);
                 finish = DateTime.Now;
                 Console.WriteLine($"finish parsing block IP's from: {finish - start}");
 
@@ -161,6 +161,7 @@ namespace DatabaseUpdater
                         dbContext.Update(location);
                     }
                 }
+
                 locations = null; //Освобождаем память.
                 dbContext.CityLocations.AddRange(newLocations);
                 dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
@@ -168,91 +169,119 @@ namespace DatabaseUpdater
                 Console.WriteLine($"locations complete from: {finish - start}. New locations added: {newLocations.Count}");
 
                 //Обновляем блоки IP.
-                startNew = DateTime.Now;
-                Console.WriteLine($"start update blocks: {startNew}");
                 BlockIPv4 dbBlock;
                 IPv4 ip_v4;
                 List<BlockIPv4> newBlocks = new List<BlockIPv4>();
                 List<IPv4> newIPs = new List<IPv4>();
 
-                foreach (BlockIPv4 block in blocks)
+                if (!quickUpdate)
                 {
-                    dbBlock = dbContext.Blocks_IPv4.FirstOrDefault(b => b.Network == block.Network);
-                    if (dbBlock == null)
+                    startNew = DateTime.Now;
+                    Console.WriteLine($"start update blocks: {startNew}");
+
+                    foreach (BlockIPv4 block in blocks)
                     {
-                        newBlocks.Add(block);
-                        ip_v4 = ip_s.FirstOrDefault(ip => ip.BlockIPv4_Id == block.Network);
-                        newIPs.Add(ip_v4);
+                        dbBlock = dbContext.Blocks_IPv4.FirstOrDefault(b => b.Network == block.Network);
+                        if (dbBlock == null)
+                        {
+                            newBlocks.Add(block);
+                            ip_v4 = ParseIP(block.Network);
+                            newIPs.Add(ip_v4);
+                        }
+                        else if (!block.Equals(dbBlock))
+                        {
+                            dbContext.Entry(dbBlock).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+                            dbContext.Update(block);
+                        }
                     }
-                    else if (!block.Equals(dbBlock))
-                    {
-                        dbContext.Entry(dbBlock).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
-                        dbContext.Update(block);
-                    }
+                    blocks = null; //Освобождаем память.
+                    dbContext.SaveChanges(); //Сохраняем изменения в базе.
+                    finish = DateTime.Now;
+                    Console.WriteLine($"blocks update complete from: {finish - start}");
                 }
-                blocks = null;
-                ip_s = null; //Освобождаем память.
-                dbContext.SaveChanges(); //Сохраняем изменения в базе.
-                finish = DateTime.Now;
-                Console.WriteLine($"blocks update complete from: {finish - start}");
+                else //Не проверяем существующие блоки на изменения (потому, что очень долго!!!)
+                {
+                    startNew = DateTime.Now;
+                    Console.WriteLine($"start search new blocks: {startNew}");
+
+                    foreach (BlockIPv4 block in blocks)
+                    {
+                        if (!dbContext.Blocks_IPv4.Any(b => b.Network == block.Network))
+                        {
+                            newBlocks.Add(block);
+                            ip_v4 = ParseIP(block.Network);
+                            newIPs.Add(ip_v4);
+                        }
+                    }
+                    blocks = null; //Освобождаем память.
+                    finish = DateTime.Now;
+                    Console.WriteLine($"new blocks search complete from: {finish - start}");
+                }
 
                 //Сохраняем новые блоки.
-                startNew = DateTime.Now;
-                var newBlocksRange = new List<BlockIPv4>(100000);
-                Console.WriteLine($"start saving new blocks: {startNew}");
-                int remainder;
-                int newBlocksCount = remainder = newBlocks.Count; 
-
-                while (newBlocks.Count > 0)
+                if (newBlocks.Count > 0)
                 {
-                    start100 = DateTime.Now;
-                    if (newBlocks.Count > 100000)
+                    startNew = DateTime.Now;
+                    var newBlocksRange = new List<BlockIPv4>(100000);
+                    Console.WriteLine($"start saving new blocks: {startNew}");
+                    int remainder;
+                    int newBlocksCount = remainder = newBlocks.Count;
+
+                    while (newBlocks.Count > 0)
                     {
-                        newBlocksRange = newBlocks.GetRange(0, 100000);
-                        newBlocks.RemoveRange(0, 100000);
-                        dbContext.Blocks_IPv4.AddRange(newBlocksRange);
-                        remainder = newBlocksRange.Count;
+                        start100 = DateTime.Now;
+                        if (newBlocks.Count > 100000)
+                        {
+                            newBlocksRange = newBlocks.GetRange(0, 100000);
+                            newBlocks.RemoveRange(0, 100000);
+                            dbContext.Blocks_IPv4.AddRange(newBlocksRange);
+                            remainder = newBlocksRange.Count;
+                        }
+                        else
+                        {
+                            dbContext.Blocks_IPv4.AddRange(newBlocks);
+                            remainder = newBlocks.Count;
+                            newBlocks.Clear();
+                        }
+                        dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
+                        finish = DateTime.Now;
+                        Console.WriteLine($"{remainder} blocks complete from: {finish - start100}");
                     }
-                    else
-                    {
-                        dbContext.Blocks_IPv4.AddRange(newBlocks);
-                        remainder = newBlocks.Count;
-                        newBlocks.Clear();
-                    }
-                    dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
                     finish = DateTime.Now;
-                    Console.WriteLine($"{remainder} blocks complete from: {finish - start100}");
+                    Console.WriteLine($"{newBlocksCount} new blocks saved from: {finish - startNew}");
+
+                    //Сохраняем новые IP.
+                    startNew = DateTime.Now;
+                    var newIPRange = new List<IPv4>(100000);
+                    Console.WriteLine($"start saving new IP: {startNew}");
+
+                    while (newIPs.Count > 0)
+                    {
+                        start100 = DateTime.Now;
+                        if (newIPs.Count > 100000)
+                        {
+                            newIPRange = newIPs.GetRange(0, 100000);
+                            newIPs.RemoveRange(0, 100000);
+                            dbContext.IPs_v4.AddRange(newIPRange);
+                            remainder = newBlocksRange.Count;
+                        }
+                        else
+                        {
+                            dbContext.IPs_v4.AddRange(newIPs);
+                            remainder = newIPs.Count;
+                            newIPs.Clear();
+                        }
+                        dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
+                        finish = DateTime.Now;
+                        Console.WriteLine($"{remainder} IP's complete from: {finish - start100}");
+                    }
+                    finish = DateTime.Now;
+                    Console.WriteLine($"{newBlocksCount} new IP's saved from: {finish - startNew}");
                 }
-                finish = DateTime.Now;
-                Console.WriteLine($"{newBlocksCount} new blocks saved from: {finish - startNew}");
-
-                //Сохраняем новые IP.
-                startNew = DateTime.Now;
-                var newIPRange = new List<IPv4>(100000);
-                Console.WriteLine($"start saving new IP: {startNew}");
-
-                while (newIPs.Count > 0)
+                else
                 {
-                    start100 = DateTime.Now;
-                    if (newIPs.Count > 100000)
-                    {
-                        newIPRange = newIPs.GetRange(0, 100000);
-                        newIPs.RemoveRange(0, 100000);
-                        dbContext.IPs_v4.AddRange(newIPRange);
-                        remainder = newBlocksRange.Count;
-                    }
-                    else
-                    {
-                        dbContext.IPs_v4.AddRange(newIPs);
-                        remainder = newIPs.Count;
-                        newIPs.Clear();
-                    }
-                    dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
-                    finish = DateTime.Now;
-                    Console.WriteLine($"{remainder} IP's complete from: {finish - start100}");
+                    Console.WriteLine("0 new blocks found");
                 }
-                finish = DateTime.Now;
-                Console.WriteLine($"{newBlocksCount} new blocks saved from: {finish - startNew}");
                 Console.WriteLine($"All update operations complete from: {finish - start}");
                 Console.WriteLine("Обновление завершено.");
             }
@@ -262,6 +291,7 @@ namespace DatabaseUpdater
             }
         }
 
+        //Создаёт коллекцию сущностей CityLocation из CSV-файла.
         public static List<CityLocation> ParseAllLocations(string locationFileName)
         {
             List<CityLocation> locations = new List<CityLocation>();
@@ -288,6 +318,7 @@ namespace DatabaseUpdater
             return locations;
         }
 
+        //Создаёт коллекции сущностей BlockIPv4 и IPv4 из CSV-файла.
         public static List<BlockIPv4> ParseAllBlocksIPv4(string blockIPv4FileName, out List<IPv4> ipList)
         {
             BlockIPv4 block;
@@ -310,6 +341,31 @@ namespace DatabaseUpdater
                         blocks.Add(block);
                         ip_v4 = ParseIP(block.Network);
                         if (ip_v4 != null) ipList.Add(ip_v4);
+                    }
+                }
+            }
+            return blocks;
+        }
+
+        //Создаёт коллекцию сущностей BlockIPv4 из CSV-файла.
+        public static List<BlockIPv4> ParseAllBlocksIPv4(string blockIPv4FileName)
+        {
+            BlockIPv4 block;
+            List<BlockIPv4> blocks = new List<BlockIPv4>();
+
+            using (var blockIPv4FileReader = new StreamReader(blockIPv4FileName))
+            {
+                string blockIPv4FileHeader = blockIPv4FileReader.ReadLine();
+                if (!blockIPv4FileHeader.Equals(block_IPv4_File_Header))
+                {
+                    throw new Exception($"Некорректный заголовок файла данных {blockIPv4FileName}");
+                }
+                while (!blockIPv4FileReader.EndOfStream)
+                {
+                    block = ParseBlockIPv4(blockIPv4FileReader.ReadLine());
+                    if (block != null)
+                    {
+                        blocks.Add(block);
                     }
                 }
             }

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using Tools;
 
 namespace DatabaseUpdater
 {
@@ -27,7 +28,7 @@ namespace DatabaseUpdater
             {
                 try
                 {
-                    using (var db = new GeoIPDbContext(config.ConnectionString))
+                    using (GeoIPDbContext db = new GeoIPDbContext(config.ConnectionString))
                     {
                         var dbCreated = db.Database.EnsureCreated();
                         //Console.WriteLine(dbCreated);
@@ -35,8 +36,13 @@ namespace DatabaseUpdater
                         string blocksIPv4FileName = string.Concat(config.TempFolder, @"\", config.BlocksIPv4_CSV_FileName);
                         DateTime start = DateTime.Now;
                         Console.WriteLine($"Старт обновления: {start}");
-                        Updater.DatabaseUpdate(db, blocksIPv4FileName, locationsFileName);
+                        //Stream zipFile = new FileStream(@"D:\UserDocs\Documents\Hx100\Hybrid\GeoLite2-City-CSV_20181127.zip", FileMode.Open);
+                        //Console.WriteLine($"{Utilites.GetMD5(zipFile)}");
+                        //Console.WriteLine(Utilites.CheckMD5("bfc016e7e7278a7ac0b56696b54746b7", zipFile));
+                        //zipFile.Close();
+                        //Updater.DatabaseUpdate(db, blocksIPv4FileName, locationsFileName, true);
                         //Updater.DatabaseRebuild(db, blocksIPv4FileName, locationsFileName, dbCreated);
+                        //Console.WriteLine(Utilites.DownloadFile("http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip", @"D:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash"));
                         DateTime finish = DateTime.Now;
                         Console.WriteLine($"Затраченное время: {finish - start}");
                     }
