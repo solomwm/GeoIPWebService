@@ -1,11 +1,6 @@
 ﻿using Database;
-using Database.Models;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Tools;
 
@@ -18,6 +13,8 @@ namespace DatabaseUpdater
         const string tempFolder_Default = "tmp";
         const string locations_CSV_FileName_Default = "GeoLite2-City-Locations-ru.csv";
         const string blocksIPv4_CSV_FileName_Default = "GeoLite2-City-Blocks-IPv4.csv";
+        const string md5FileUrl_Default = "http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip.md5";
+        const string dataFileUrl_Deafault = "http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip";
 
         static void Main(string[] args)
         {
@@ -30,29 +27,15 @@ namespace DatabaseUpdater
                 {
                     using (GeoIPDbContext db = new GeoIPDbContext(config.ConnectionString))
                     {
+                        Console.WriteLine("Подключение к базе...");
                         var dbCreated = db.Database.EnsureCreated();
-                        //Console.WriteLine(dbCreated);
-                        string locationsFileName = string.Concat(config.TempFolder, @"\", config.Locations_CSV_FileName);
-                        string blocksIPv4FileName = string.Concat(config.TempFolder, @"\", config.BlocksIPv4_CSV_FileName);
-                        DateTime start = DateTime.Now;
-                        Console.WriteLine($"Старт обновления: {start}");
-                        //Stream zipFile = new FileStream(@"D:\UserDocs\Documents\Hx100\Hybrid\GeoLite2-City-CSV_20181127.zip", FileMode.Open);
-                        //Console.WriteLine($"{Utilites.GetMD5(zipFile)}");
-                        //Console.WriteLine(Utilites.CheckMD5("bfc016e7e7278a7ac0b56696b54746b7", zipFile));
-                        //zipFile.Close();
-                        //Updater.DatabaseUpdate(db, blocksIPv4FileName, locationsFileName, true);
-                        //Updater.DatabaseRebuild(db, blocksIPv4FileName, locationsFileName, dbCreated);
-                        //Console.WriteLine(Utilites.DownloadFile("http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip", @"D:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash"));
-                        DateTime finish = DateTime.Now;
-                        Console.WriteLine($"Затраченное время: {finish - start}");
+                        Console.WriteLine($"Подключение установлено: {db.Database.ProviderName}");
+                        DoOperations(db, config);   
                     }
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine(e.Message);
-                    Console.WriteLine("Не удалось подключиться к базе данных.");
-                    Console.WriteLine("Файл конфигурации: " + configFileName);
-                    Console.WriteLine("Строка подключения: \"" + config.ConnectionString + "\"");
                 }
             }
             else Console.WriteLine("failed to create application configuration");
@@ -87,7 +70,9 @@ namespace DatabaseUpdater
                     CashFolder = currentDirectory + @"\" + cashFolder_Default,
                     TempFolder = currentDirectory + @"\" + tempFolder_Default,
                     Locations_CSV_FileName = locations_CSV_FileName_Default,
-                    BlocksIPv4_CSV_FileName = blocksIPv4_CSV_FileName_Default
+                    BlocksIPv4_CSV_FileName = blocksIPv4_CSV_FileName_Default,
+                    MD5FileUrl = md5FileUrl_Default,
+                    DataFileUrl = dataFileUrl_Deafault
                 };
                 try
                 {
@@ -115,6 +100,82 @@ namespace DatabaseUpdater
             }
             
             return config;
+        }
+
+        static void DoOperations(GeoIPDbContext dbContext, Config config)
+        {
+            DateTime start = DateTime.Now;
+            string md5Hash;
+            Console.WriteLine($"Выполняется проверка обновлений: {start}");
+            bool checkResult = Updater.CheckUpdate(Updater.GetLastUpdateInfo(dbContext), config.MD5FileUrl, out string message);
+            DateTime finish = DateTime.Now;
+            Console.WriteLine($"Проверка обновлений завершена за {finish - start} с сообщением: {message}");
+
+            if (/*checkResult*/true)
+            {
+                Console.WriteLine("Обновить сейчас? (y/n)");
+                int answ = Console.Read();
+                if (answ == 'y' || answ == 'Y')
+                {
+                    DateTime startNext;
+
+                    //download updates;
+                    string md5FileName, dataFileName;
+                    startNext = DateTime.Now;
+                    Console.WriteLine($"Загрузка обновлений: {startNext}");
+                    if (Utilites.DownloadFile(config.MD5FileUrl, config.TempFolder, out md5FileName))
+                    {
+                        using (StreamReader md5Reader = new StreamReader(md5FileName))
+                        {
+                            md5Hash = md5Reader.ReadLine();
+                        }
+                        if (Utilites.DownloadFile(config.DataFileUrl, config.TempFolder, md5Hash, out dataFileName, out bool checkRes))
+                        {
+                            Console.WriteLine($"Check MD5: {(checkRes ? "OK" : "failed")}");
+                        }
+                        else return;
+                    }
+                    else return;
+                    finish = DateTime.Now;
+                    Console.WriteLine($"Загрузка завершена: {finish - startNext}");
+
+                    //extract updates;
+                    startNext = DateTime.Now;
+                    Console.WriteLine($"Распаковка обновлений: {startNext}");
+                    string[] extractedFiles = Utilites.ExtractFromZip(dataFileName, config.CashFolder,
+                                new string[] { config.Locations_CSV_FileName, config.BlocksIPv4_CSV_FileName });
+                    finish = DateTime.Now;
+                    Console.WriteLine($"Распаковка завершена: {finish - startNext}");
+
+                    ////remove temporary files and ordering data;
+                    startNext = DateTime.Now;
+                    Console.WriteLine($"Удаление временных файлов: {startNext}");
+                    string blocksFileName;
+                    string locationsFileName = blocksFileName = string.Empty;
+
+                    for (int i = 0; i < extractedFiles.Length; i++)
+                    {
+                        if (extractedFiles[i].EndsWith(config.Locations_CSV_FileName)) locationsFileName = extractedFiles[i];
+                        else if (extractedFiles[i].EndsWith(config.BlocksIPv4_CSV_FileName)) blocksFileName = extractedFiles[i];
+                    }
+
+                    string cashedFilesPath = Path.GetDirectoryName(locationsFileName);
+                    File.Move(md5FileName, Path.Combine(cashedFilesPath, Path.GetFileName(md5FileName)));
+                    File.Move(dataFileName, Path.Combine(cashedFilesPath, Path.GetFileName(dataFileName)));
+                    finish = DateTime.Now;
+                    Console.WriteLine($"Удаление завершено: {finish - startNext}");
+
+                    //install updates;
+                    startNext = DateTime.Now;
+                    Console.WriteLine($"Установка обновлений: {startNext}");
+                    Updater.DatabaseUpdate(dbContext, blocksFileName, locationsFileName, true);
+                    dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
+                    dbContext.SaveChanges();
+                    finish = DateTime.Now;
+                    Console.WriteLine($"Установка завершена: {finish - startNext}");
+                }
+            }
+            Console.WriteLine($"Затраченное время: {finish - start}");
         }
     }
 }

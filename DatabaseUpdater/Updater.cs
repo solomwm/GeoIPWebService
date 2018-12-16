@@ -4,9 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Timers;
 using Tools;
 
 namespace DatabaseUpdater
@@ -170,7 +172,6 @@ namespace DatabaseUpdater
 
                 //Обновляем блоки IP.
                 BlockIPv4 dbBlock;
-                IPv4 ip_v4;
                 List<BlockIPv4> newBlocks = new List<BlockIPv4>();
                 List<IPv4> newIPs = new List<IPv4>();
 
@@ -185,8 +186,7 @@ namespace DatabaseUpdater
                         if (dbBlock == null)
                         {
                             newBlocks.Add(block);
-                            ip_v4 = ParseIP(block.Network);
-                            newIPs.Add(ip_v4);
+                            newIPs.Add(ParseIP(block.Network));
                         }
                         else if (!block.Equals(dbBlock))
                         {
@@ -203,19 +203,40 @@ namespace DatabaseUpdater
                 {
                     startNew = DateTime.Now;
                     Console.WriteLine($"start search new blocks: {startNew}");
+                    int blocksCount = 0;
+                    Timer timer = new Timer(30000) { Enabled = true, AutoReset = true };
+                    timer.Elapsed += delegate 
+                    {
+                        Console.WriteLine($"{blocksCount} blocks from {blocks.Count} complete, {newBlocks.Count} " +
+                            $"new blocks found.");
+                        Console.CursorTop--;
+                    };
 
                     foreach (BlockIPv4 block in blocks)
                     {
                         if (!dbContext.Blocks_IPv4.Any(b => b.Network == block.Network))
                         {
                             newBlocks.Add(block);
-                            ip_v4 = ParseIP(block.Network);
-                            newIPs.Add(ip_v4);
+                            newIPs.Add(ParseIP(block.Network));
                         }
+                        blocksCount++;
                     }
+                    timer.Enabled = false;
+                    //BlockIPv4 lastBlock = dbContext.Blocks_IPv4.OrderBy(b => b.Network).Last();
+                    //blocks.OrderBy(b => b.Network);
+                    //Console.WriteLine($"sorted: {DateTime.Now - startNew}"); //need remove.
+                    //int startIndexInBlocks = blocks.FindIndex(b => b.Network == lastBlock.Network) + 1;
+                    //newBlocks = blocks.GetRange(startIndexInBlocks, 2/*blocks.Count - startIndexInBlocks*/);
+                    //newIPs.Capacity = newBlocks.Capacity;
+
+                    foreach (BlockIPv4 block in newBlocks)
+                    {
+                        newIPs.Add(ParseIP(block.Network));
+                    }
+
                     blocks = null; //Освобождаем память.
                     finish = DateTime.Now;
-                    Console.WriteLine($"new blocks search complete from: {finish - start}");
+                    Console.WriteLine($"new blocks search complete from: {finish - start}, new blocks found: {newBlocks.Count}");
                 }
 
                 //Сохраняем новые блоки.
@@ -370,6 +391,36 @@ namespace DatabaseUpdater
                 }
             }
             return blocks;
+        }
+
+        //Проверяет наличие новых обновлений на сервере.
+        public static bool CheckUpdate(UpdateInfo lastUpdate, string md5Url, out string message)
+        {
+            byte[] md5Data = null;
+
+            try
+            {
+                using (WebClient client = new WebClient())
+                {
+                    md5Data = client.DownloadData(md5Url);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                message = "failed to load data from server";
+                return false;
+            }
+            bool result = !Utilites.CheckMD5(lastUpdate.Hash, md5Data);
+            if (result) message = "new update available";
+            else message = "actual version installed";
+            return result;
+        }
+
+        //Возвращает сущность последнего установленного обновления.
+        public static UpdateInfo GetLastUpdateInfo(GeoIPDbContext dbContext)
+        {
+            return dbContext.Updates.OrderBy(u => u.Id).Last();
         }
         
         //Создаёт сущность CityLocation из CSV-строки.    
