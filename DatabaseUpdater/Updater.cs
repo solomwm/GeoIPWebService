@@ -396,22 +396,28 @@ namespace DatabaseUpdater
         //Проверяет наличие новых обновлений на сервере.
         public static bool CheckUpdate(UpdateInfo lastUpdate, string md5Url, out string message)
         {
-            byte[] md5Data = null;
+            string md5Data = null;
+            bool result;
 
-            try
+            if (lastUpdate != null)
             {
-                using (WebClient client = new WebClient())
+                try
                 {
-                    md5Data = client.DownloadData(md5Url);
+                    using (WebClient client = new WebClient())
+                    {
+                        md5Data = client.DownloadString(md5Url);
+                    }
                 }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                    message = "failed to load data from server";
+                    return false;
+                }
+                result = !(lastUpdate.Hash.ToUpper().Trim() == md5Data.ToUpper().Trim());
             }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                message = "failed to load data from server";
-                return false;
-            }
-            bool result = !Utilites.CheckMD5(lastUpdate.Hash, md5Data);
+            else result = true;
+
             if (result) message = "new update available";
             else message = "actual version installed";
             return result;

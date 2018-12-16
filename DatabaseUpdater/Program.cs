@@ -111,7 +111,7 @@ namespace DatabaseUpdater
             DateTime finish = DateTime.Now;
             Console.WriteLine($"Проверка обновлений завершена за {finish - start} с сообщением: {message}");
 
-            if (/*checkResult*/true)
+            if (checkResult)
             {
                 Console.WriteLine("Обновить сейчас? (y/n)");
                 int answ = Console.Read();
