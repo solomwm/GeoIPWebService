@@ -9,6 +9,7 @@ namespace Database.Models
         public string IP { get; set; }
 
         [ForeignKey("BlockIPv4")]
+        [Required]
         public string BlockIPv4_Id { get; set; }
 
         public virtual BlockIPv4 BlockIPv4 { get; set; }

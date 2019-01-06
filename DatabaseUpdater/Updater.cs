@@ -7,9 +7,11 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using Tools;
+using Timer = System.Timers.Timer;
 
 namespace DatabaseUpdater
 {
@@ -71,11 +73,10 @@ namespace DatabaseUpdater
                 }
                 else //иначе обновляем существующие таблицы.
                 {
-                    //Удаляем ненужные записи из таблиц, если таковые есть.
-                    //Проверяем существующие данные на изменение.
-                    //Добавляем новые записи в таблицы.
+                    //dbContext.Database.
                 }
 
+                finish = DateTime.Now;
                 Console.WriteLine($"finish update Database from: {finish - start}");
                 Console.WriteLine("Обновление завершено.");
             }
@@ -91,6 +92,7 @@ namespace DatabaseUpdater
             try
             {
                 DateTime start, startNew, finish;
+                Timer timer = new Timer(30000) { AutoReset = true };
 
                 //Парсим файл локаций. Создаём сущности CityLocation.
                 start = DateTime.Now;
@@ -117,39 +119,70 @@ namespace DatabaseUpdater
                 Console.WriteLine($"start update Database: {start}");
 
                 //Обновляем локации.
-                Console.WriteLine("start update locations");
-                CityLocation dbLocation;
-                List<CityLocation> newLocations = new List<CityLocation>();
+                //Console.WriteLine("start update locations");
+                //CityLocation dbLocation;
+                //List<CityLocation> newLocations = new List<CityLocation>();
+                //int locCount;
+                //int changedLocCount = locCount = 0;
 
-                foreach (CityLocation location in locations)
-                {
-                    dbLocation = dbContext.CityLocations.FirstOrDefault(l => l.Geoname_Id == location.Geoname_Id);
-                    if (dbLocation == null)
-                    {
-                        newLocations.Add(location);
-                    }
-                    else if (!location.Equals(dbLocation))
-                    {
-                        dbContext.Entry(dbLocation).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
-                        dbContext.Update(location);
-                    }
-                }
+                //timer.Start();
+                //timer.Elapsed += delegate
+                //{
+                //    Console.WriteLine($"{locCount} locations from {locations.Count} complete, {newLocations.Count} " +
+                //            $"new locations found, {changedLocCount} locations changed.");
+                //    Console.CursorTop--;
+                //};
 
-                locations = null; //Освобождаем память.
-                dbContext.CityLocations.AddRange(newLocations);
-                dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
-                finish = DateTime.Now;
-                Console.WriteLine($"locations complete from: {finish - start}. New locations added: {newLocations.Count}");
+                //foreach (CityLocation location in locations)
+                //{
+                //    dbLocation = dbContext.CityLocations.FirstOrDefault(l => l.Geoname_Id == location.Geoname_Id);
+                //    if (dbLocation == null)
+                //    {
+                //        newLocations.Add(location);
+                //    }
+                //    else if (!location.Equals(dbLocation))
+                //    {
+                //        dbContext.Entry(dbLocation).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+                //        dbContext.Update(location);
+                //        changedLocCount++;
+                //    }
+                //    locCount++;
+                //}
+                //Console.WriteLine($"{locCount} locations from {locations.Count} complete, {newLocations.Count} " +
+                //           $"new locations found, {changedLocCount} locations changed.");
+                //timer.Stop();
+
+                //locations = null; //Освобождаем память.
+                //startNew = DateTime.Now;
+                //Console.WriteLine($"\nsaving locations to database {startNew}");
+                //dbContext.CityLocations.AddRange(newLocations);
+                //dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
+                //finish = DateTime.Now;
+                //Console.WriteLine($"locations complete from: {finish - start}. New locations added: {newLocations.Count}");
 
                 //Обновляем блоки IP.
                 BlockIPv4 dbBlock;
                 List<BlockIPv4> newBlocks = new List<BlockIPv4>();
                 List<IPv4> newIPs = new List<IPv4>();
 
+                //Сортируем таблицы блоков для ускорения поиска.
+                dbContext.Blocks_IPv4.OrderBy(b => b.Geoname_Id);
+                blocks.OrderBy(b => b.Geoname_Id);
+
                 if (!quickUpdate)
                 {
                     startNew = DateTime.Now;
                     Console.WriteLine($"start update blocks: {startNew}");
+                    int blocksCount;
+                    int changedBlocksCount = blocksCount = 0;
+                    timer = new Timer(30000) { AutoReset = true };
+                    timer.Start();
+                    timer.Elapsed += delegate
+                    {
+                        Console.WriteLine($"{blocksCount} blocks from {blocks.Count} complete, {newBlocks.Count} " +
+                            $"new blocks found, {changedBlocksCount} blocks changed.");
+                        Console.CursorTop--;
+                    };
 
                     foreach (BlockIPv4 block in blocks)
                     {
@@ -163,19 +196,29 @@ namespace DatabaseUpdater
                         {
                             dbContext.Entry(dbBlock).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
                             dbContext.Update(block);
+                            changedBlocksCount++;
                         }
+                        blocksCount++;
                     }
+                    Console.WriteLine($"{blocksCount} blocks from {blocks.Count} complete, {newBlocks.Count} " +
+                            $"new blocks found, {changedBlocksCount} blocks changed.");
+                    timer.Stop();
+
                     blocks = null; //Освобождаем память.
+                    startNew = DateTime.Now;
+                    Console.WriteLine($"\nstart saving changes to database: {startNew}");
                     dbContext.SaveChanges(); //Сохраняем изменения в базе.
                     finish = DateTime.Now;
+                    Console.WriteLine($"save changes complete: {finish - startNew}");
                     Console.WriteLine($"blocks update complete from: {finish - start}");
                 }
+
                 else //Не проверяем существующие блоки на изменения (потому, что очень долго!!!)
                 {
                     startNew = DateTime.Now;
                     Console.WriteLine($"start search new blocks: {startNew}");
                     int blocksCount = 0;
-                    Timer timer = new Timer(30000) { Enabled = true, AutoReset = true };
+                    timer.Start();
                     timer.Elapsed += delegate 
                     {
                         Console.WriteLine($"{blocksCount} blocks from {blocks.Count} complete, {newBlocks.Count} " +
@@ -192,22 +235,13 @@ namespace DatabaseUpdater
                         }
                         blocksCount++;
                     }
-                    timer.Enabled = false;
-                    //BlockIPv4 lastBlock = dbContext.Blocks_IPv4.OrderBy(b => b.Network).Last();
-                    //blocks.OrderBy(b => b.Network);
-                    //Console.WriteLine($"sorted: {DateTime.Now - startNew}"); //need remove.
-                    //int startIndexInBlocks = blocks.FindIndex(b => b.Network == lastBlock.Network) + 1;
-                    //newBlocks = blocks.GetRange(startIndexInBlocks, 2/*blocks.Count - startIndexInBlocks*/);
-                    //newIPs.Capacity = newBlocks.Capacity;
-
-                    foreach (BlockIPv4 block in newBlocks)
-                    {
-                        newIPs.Add(ParseIP(block.Network));
-                    }
+                    Console.WriteLine($"{blocksCount} blocks from {blocks.Count} complete, {newBlocks.Count} " +
+                           $"new blocks found.");
+                    timer.Stop();
 
                     blocks = null; //Освобождаем память.
                     finish = DateTime.Now;
-                    Console.WriteLine($"new blocks search complete from: {finish - start}, new blocks found: {newBlocks.Count}");
+                    Console.WriteLine($"\nnew blocks search complete from: {finish - start}, new blocks found: {newBlocks.Count}");
                 }
 
                 //Сохраняем новые блоки.
