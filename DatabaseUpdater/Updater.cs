@@ -1,7 +1,9 @@
 ﻿using Database;
 using Database.Models;
+using Npgsql;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -273,6 +275,31 @@ namespace DatabaseUpdater
             {
                 Console.WriteLine(e.Message);
             }
+        }
+
+        //Обновляет базу, используя ADO DataAdapter и DataSet.
+        public static void DatabaseUpdateADO(string connectionString, string blockIPv4FileName, string locationFileName)
+        {
+            string sqlSelect = "SELECT * FROM \"CityLocations\";";
+            DataSet dataSet = new DataSet();
+            //DateTime start, finish;
+
+            //start = DateTime.Now;
+            //Console.WriteLine($"Start now: {start}");
+            using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
+            {
+                connection.Open();
+                NpgsqlDataAdapter adapter = new NpgsqlDataAdapter(sqlSelect, connection);
+                adapter.Fill(dataSet);
+            }
+            DataTable locationsTable = dataSet.Tables[0];
+            Console.WriteLine(locationsTable.Rows.Count);
+            //for (int i = 0; i < 10; i++)
+            //{
+            //    Console.WriteLine(locationsTable.Rows[i]);
+            //}
+            //finish = DateTime.Now;
+            //Console.WriteLine($"Complete at: {finish - start}");
         }
 
         //Создаёт коллекцию сущностей CityLocation из CSV-файла.

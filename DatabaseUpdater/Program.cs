@@ -168,10 +168,11 @@ namespace DatabaseUpdater
                     //install updates;
                     startNext = DateTime.Now;
                     Console.WriteLine($"Установка обновлений: {startNext}");
-                    Updater.DatabaseUpdate(dbContext, /*blocksFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Blocks-IPv4.csv", /*locationsFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Locations-ru.csv", true/*false*/);
+                    Updater.DatabaseUpdateADO(config.ConnectionString, "", "");
+                    //Updater.DatabaseUpdate(dbContext, /*blocksFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Blocks-IPv4.csv", /*locationsFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Locations-ru.csv", true/*false*/);
                     //Updater.DatabaseRebuild(dbContext, @"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Blocks-IPv4.csv", @"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Locations-ru.csv", false);
                     //dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
-                    dbContext.SaveChanges();
+                    //dbContext.SaveChanges();
                     finish = DateTime.Now;
                     Console.WriteLine($"Установка завершена: {finish - startNext}");
                 }
