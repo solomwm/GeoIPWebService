@@ -561,5 +561,71 @@ namespace DatabaseUpdater
                 Console.WriteLine($"{ip_sRange.Count} IP's complete from: {finish - start100}");
             }
         }
+
+        //Пакетное обновление таблицы локаций.
+        private static void BatchUpdateLocations(string connectionString, DataTable dataTable, int batchSize)
+        {
+            using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
+            {
+                NpgsqlDataAdapter dataAdapter = new NpgsqlDataAdapter() { UpdateBatchSize = batchSize };
+
+                //Set the DELETE command and parameter.
+                dataAdapter.DeleteCommand = new NpgsqlCommand("DELETE FROM \"CityLocations\" " +
+                    "WHERE \"Geoname_Id\" = @\"Geoname_Id\"", connection);
+
+
+                //Set the UPDATE command and parameters.
+
+                //Set the INSERT command and parameter.
+
+                //Execute the update.
+                dataAdapter.Update(dataTable);
+            }
+        }
+
+        //Возвращает строку данных для CityLocations DataTable.
+        private static object[] GetLocationDataRow(string csvDataStr)
+        {
+            object[] result;
+            string[] csvDataArr;
+
+            if (csvDataStr.Contains(", "))
+            {
+                StringBuilder csvDataBuilder = new StringBuilder(csvDataStr);
+                csvDataBuilder.Replace(", ", "@");
+                csvDataBuilder.Replace(",", ";");
+                csvDataBuilder.Replace("@", ", ");
+                csvDataArr = csvDataBuilder.ToString().Split(new char[] { ';' }, StringSplitOptions.None);
+            }
+            else csvDataArr = csvDataStr.Split(new char[] { ',' }, StringSplitOptions.None);
+
+            try
+            {
+                result = new object[]
+                {
+                    int.Parse(csvDataArr[0]), csvDataArr[1], csvDataArr[2], csvDataArr[3], csvDataArr[4], csvDataArr[5],
+                    csvDataArr[6], csvDataArr[7], csvDataArr[8], csvDataArr[9], csvDataArr[10], csvDataArr[11], csvDataArr[12],
+                    int.TryParse(csvDataArr[13], out int res) ? new { Value = Convert.ToBoolean(res) }  : null
+                };
+                return result;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return null;
+            }
+        }
+
+        //Возвращает строку данных для BlocksIPv4 DataTable.
+        private static object[] GetBlockIPv4DataRow(string csvDataStr)
+        {
+            return null;
+        }
+
+        //Возвращает строку данных для IPsv4 DataTable.
+        private static object[] GetIPv4DataRow(string csvDataStr)
+        {
+            return null;
+        }
     }
 }

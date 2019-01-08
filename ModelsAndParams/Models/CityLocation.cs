@@ -21,7 +21,7 @@ namespace Database.Models
         public string City_Name { get; set; }
         public string Metro_Code { get; set; }
         public string Time_Zone { get; set; }
-        public bool Is_In_European_Union { get; set; }
+        public bool? Is_In_European_Union { get; set; }
         
         public bool Equals(CityLocation obj) //В целях оптимизации быстродействия. Первые пять полей не сравниваем, потому как очень вряд ли они могут измениться.
         {
