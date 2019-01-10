@@ -277,29 +277,15 @@ namespace DatabaseUpdater
             }
         }
 
-        //Обновляет базу, используя ADO DataAdapter и DataSet.
+        //Обновляет базу, используя ADO DataAdapter и DataTable.
         public static void DatabaseUpdateADO(string connectionString, string blockIPv4FileName, string locationFileName)
         {
-            string sqlSelect = "SELECT * FROM \"CityLocations\";";
-            DataSet dataSet = new DataSet();
-            //DateTime start, finish;
-
-            //start = DateTime.Now;
-            //Console.WriteLine($"Start now: {start}");
-            using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
-            {
-                connection.Open();
-                NpgsqlDataAdapter adapter = new NpgsqlDataAdapter(sqlSelect, connection);
-                adapter.Fill(dataSet);
-            }
-            DataTable locationsTable = dataSet.Tables[0];
-            Console.WriteLine(locationsTable.Rows.Count);
-            //for (int i = 0; i < 10; i++)
-            //{
-            //    Console.WriteLine(locationsTable.Rows[i]);
-            //}
-            //finish = DateTime.Now;
-            //Console.WriteLine($"Complete at: {finish - start}");
+            DateTime start, finish;
+            start = DateTime.Now;
+            Console.WriteLine($"Start now: {start}");
+            //TO DO...
+            finish = DateTime.Now;
+            Console.WriteLine($"Complete at: {finish - start}");
         }
 
         //Создаёт коллекцию сущностей CityLocation из CSV-файла.
@@ -562,24 +548,25 @@ namespace DatabaseUpdater
             }
         }
 
-        //Пакетное обновление таблицы локаций.
-        private static void BatchUpdateLocations(string connectionString, DataTable dataTable, int batchSize)
+        //Пакетное обновление таблицы базы данных.
+        private static void BatchUpdateDbTable(string connectionString, string sqlSelect, DataTable dataTable, int batchSize)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
             {
-                NpgsqlDataAdapter dataAdapter = new NpgsqlDataAdapter() { UpdateBatchSize = batchSize };
-
-                //Set the DELETE command and parameter.
-                dataAdapter.DeleteCommand = new NpgsqlCommand("DELETE FROM \"CityLocations\" " +
-                    "WHERE \"Geoname_Id\" = @\"Geoname_Id\"", connection);
-
-
-                //Set the UPDATE command and parameters.
-
-                //Set the INSERT command and parameter.
-
-                //Execute the update.
-                dataAdapter.Update(dataTable);
+                using (NpgsqlDataAdapter dataAdapter = new NpgsqlDataAdapter(sqlSelect, connection)) //Параметр sqlSelect связывает dataAdapter с определённой таблицей в базе данных. (Например: sqlSelect = "SELECT * FROM \"CitiLocations\";")
+                {
+                    using (NpgsqlCommandBuilder commandBuilder = new NpgsqlCommandBuilder(dataAdapter))
+                    {
+                        dataAdapter.DeleteCommand = commandBuilder.GetDeleteCommand();
+                        dataAdapter.DeleteCommand.UpdatedRowSource = UpdateRowSource.None;
+                        dataAdapter.UpdateCommand = commandBuilder.GetUpdateCommand();
+                        dataAdapter.UpdateCommand.UpdatedRowSource = UpdateRowSource.None;
+                        dataAdapter.InsertCommand = commandBuilder.GetInsertCommand();
+                        dataAdapter.InsertCommand.UpdatedRowSource = UpdateRowSource.None;
+                        dataAdapter.UpdateBatchSize = batchSize;
+                        dataAdapter.Update(dataTable);
+                    }
+                }
             }
         }
 
@@ -587,7 +574,7 @@ namespace DatabaseUpdater
         private static object[] GetLocationDataRow(string csvDataStr)
         {
             object[] result;
-            string[] csvDataArr;
+            string[] csvDataArr; 
 
             if (csvDataStr.Contains(", "))
             {
@@ -624,6 +611,24 @@ namespace DatabaseUpdater
 
         //Возвращает строку данных для IPsv4 DataTable.
         private static object[] GetIPv4DataRow(string csvDataStr)
+        {
+            return null;
+        }
+
+        //Создаёт таблицу CityLocations.
+        private static DataTable CreateLocationDataTable()
+        {
+            return null;
+        }
+
+        //Создаёт таблицу BlocksIPv4.
+        private static DataTable CreateBlockIPv4DataTable()
+        {
+            return null;
+        }
+
+        //Создаёт таблицу IPsv4.
+        private static DataTable CreateIPv4DataTable()
         {
             return null;
         }
