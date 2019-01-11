@@ -606,31 +606,71 @@ namespace DatabaseUpdater
         //Возвращает строку данных для BlocksIPv4 DataTable.
         private static object[] GetBlockIPv4DataRow(string csvDataStr)
         {
-            return null;
+            string[] csvDataArr = csvDataStr.Split(new char[] { ',' }, StringSplitOptions.None);
+            object[] result;
+            IFormatProvider provider = new System.Globalization.NumberFormatInfo { NumberDecimalSeparator = "." }; //Потому, что в файле вещественные числа имеют точку в качестве разделителя.
+            try
+            {
+                result = new object[]
+                {
+                    csvDataArr[0],
+                    csvDataArr[1] == "" ? null : new {Value = int.Parse(csvDataArr[1])},
+                    csvDataArr[2] == "" ? null : new {Value = int.Parse(csvDataArr[2])},
+                    csvDataArr[3] == "" ? null : new {Value = int.Parse(csvDataArr[3])},
+                    csvDataArr[4] == "" ? null : new {Value = Convert.ToBoolean(int.Parse(csvDataArr[4]))},
+                    csvDataArr[5] == "" ? null : new {Value = Convert.ToBoolean(int.Parse(csvDataArr[5]))},
+                    csvDataArr[6],
+                    csvDataArr[7] == "" ? null : new {Value = double.Parse(csvDataArr[7], provider)},
+                    csvDataArr[8] == "" ? null : new {Value = double.Parse(csvDataArr[8], provider)},
+                    csvDataArr[9] == "" ? null : new {Value = int.Parse(csvDataArr[9])}
+                };
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return null;
+            }
+            return result;
         }
 
         //Возвращает строку данных для IPsv4 DataTable.
-        private static object[] GetIPv4DataRow(string csvDataStr)
+        private static object[] GetIPv4DataRow(string sourceData) // sourceData == "1.0.76.0/22";
         {
-            return null;
+            string[] sourceArr = sourceData.Split('/'); //sourceArr = { "1.0.76.0", "22" };
+            if (Regex.IsMatch(sourceArr[0], GlobalParams.IPv4_Regex_Pattern))
+                return new object[] { sourceArr[0], sourceData };
+            else
+            {
+                return null;
+            }
         }
 
-        //Создаёт таблицу CityLocations.
-        private static DataTable CreateLocationDataTable()
+        //Создаёт таблицу DataTable. dataColumns.Key = "columnName"; dataColumns.Value = "typeName";
+        private static DataTable CreateDataTable(string tableName, KeyValuePair<string, string>[] dataColumns, bool pkAutoInc)
         {
-            return null;
-        }
+            DataTable resultTable = new DataTable(tableName);
+            DataColumn column;
+            
+            //Создаём столбцы таблицы.
+            for (int i = 0; i < dataColumns.Length; i++)
+            {
+                column = new DataColumn(dataColumns[i].Key, Type.GetType(dataColumns[i].Value));
+                resultTable.Columns.Add(column);
+            }
 
-        //Создаёт таблицу BlocksIPv4.
-        private static DataTable CreateBlockIPv4DataTable()
-        {
-            return null;
-        }
+            //Устанавливаем свойства первичного ключа.
+            resultTable.Columns[0].Unique = true;
+            resultTable.Columns[0].AllowDBNull = false;
+            if (pkAutoInc)
+            {
+                resultTable.Columns[0].AutoIncrement = true;
+                resultTable.Columns[0].AutoIncrementSeed = 1;
+                resultTable.Columns[0].AutoIncrementStep = 1;
+            }
 
-        //Создаёт таблицу IPsv4.
-        private static DataTable CreateIPv4DataTable()
-        {
-            return null;
+            //Задаём первичный ключ и возвращаем результат.
+            resultTable.PrimaryKey = new DataColumn[] { resultTable.Columns[0] };
+            return resultTable;
         }
     }
 }

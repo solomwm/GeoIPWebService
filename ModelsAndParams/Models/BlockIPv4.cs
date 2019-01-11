@@ -9,7 +9,7 @@ namespace Database.Models
         public string Network { get; set; }
 
         [ForeignKey("Location")]
-        public int Geoname_Id { get; set; }
+        public int? Geoname_Id { get; set; }
 
         public int? Registered_Country_Geoname_Id { get; set; }
         public int? Represented_Country_Geoname_Id { get; set; }
