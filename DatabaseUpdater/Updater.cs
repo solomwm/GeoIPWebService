@@ -280,12 +280,132 @@ namespace DatabaseUpdater
         //Обновляет базу, используя ADO DataAdapter и DataTable.
         public static void DatabaseUpdateADO(string connectionString, string blockIPv4FileName, string locationFileName)
         {
-            DateTime start, finish;
+            DateTime start, startNew, finish;
             start = DateTime.Now;
-            Console.WriteLine($"Start now: {start}");
-            //TO DO...
+            Console.WriteLine($"Start update operations now: {start}");
+            
+            //Создаём таблицы DataTable.
+            DataTable locationsTable = CreateDataTable("\"CityLocations\"", new KeyValuePair<string, string>[]
+            {
+                new KeyValuePair<string, string>("\"Geoname_Id\"", "System.Int32"),
+                new KeyValuePair<string, string>("\"Local_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Continent_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Continent_Name\"", "System.String"),
+                new KeyValuePair<string, string>("\"Country_Iso_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Country_Name\"", "System.String"),
+                new KeyValuePair<string, string>("\"Subdivision_1_Iso_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Subdivision_1_Name\"", "System.String"),
+                new KeyValuePair<string, string>("\"Subdivision_2_Iso_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Subdivision_2_Name\"", "System.String"),
+                new KeyValuePair<string, string>("\"City_Name\"", "System.String"),
+                new KeyValuePair<string, string>("\"Metro_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Time_Zone\"", "System.String"),
+                new KeyValuePair<string, string>("\"Is_In_European_Union\"","System.Boolean")
+            }, false);
+            DataTable blocksIPv4Table = CreateDataTable("\"Blocks_IPv4\"", new KeyValuePair<string, string>[] 
+            {
+                new KeyValuePair<string, string>("\"Network\"", "System.String"),
+                new KeyValuePair<string, string>("\"Geoname_Id\"", "System.Int32"),
+                new KeyValuePair<string, string>("\"Registered_Country_Geoname_Id\"", "System.Int32"),
+                new KeyValuePair<string, string>("\"Represented_Country_Geoname_Id\"", "System.Int32"),
+                new KeyValuePair<string, string>("\"Is_Anonymous_Proxy\"", "System.Boolean"),
+                new KeyValuePair<string, string>("\"Is_Satellite_Provider\"", "System.Boolean"),
+                new KeyValuePair<string, string>("\"Postal_Code\"", "System.String"),
+                new KeyValuePair<string, string>("\"Latitude\"", "System.Double"),
+                new KeyValuePair<string, string>("\"Longitude\"", "System.Double"),
+                new KeyValuePair<string, string>("\"Accuracy_Radius\"", "System.Int32"),
+            }, false);
+            DataTable ipsV4Table = CreateDataTable("\"IPs_v4\"", new KeyValuePair<string, string>[] 
+            {
+                new KeyValuePair<string, string>("\"IP\"", "System.String"),
+                new KeyValuePair<string, string>("\"BlockIPv4_Id\"", "System.String"),
+            }, false);
+
+            //Заполняем таблицы DataTable данными из csv-файлов.
+            //Заполняем locationsTable.
+            startNew = DateTime.Now;
+            Console.WriteLine($"Start parsing locations: {startNew}");
+
+            using (StreamReader locationsReader = new StreamReader(locationFileName))
+            {
+                object[] location;
+                string[] bufferArr;
+
+                string locationFileHeader = locationsReader.ReadLine();
+                if (!locationFileHeader.Equals(location_File_Header))
+                {
+                    throw new Exception($"Некорректный заголовок файла данных {locationFileName}");
+                }
+                
+                //Нормализуем csv-данные.
+                StringBuilder buffer = new StringBuilder(locationsReader.ReadToEnd());
+                buffer.Replace(", ", "@");
+                buffer.Replace(",", ";");
+                buffer.Replace("@", ", ");
+                bufferArr = buffer.ToString().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+                //Заполняем таблицу.
+                for (int i = 0; i < bufferArr.Length; i++)
+                {
+                    location = GetLocationDataRow(bufferArr[i], ';');
+                    if (location != null) locationsTable.Rows.Add(location);
+                }
+            }
             finish = DateTime.Now;
-            Console.WriteLine($"Complete at: {finish - start}");
+            Console.WriteLine($"Locations parsing complete at: {finish - startNew}");
+
+            //Заполняем blocksIPv4Table и ipsV4Table.
+            startNew = DateTime.Now;
+            Console.WriteLine($"Start parsing blocks IPv4: {startNew}");
+
+            using (StreamReader blocksReader = new StreamReader(blockIPv4FileName))
+            {
+                object[] block, ip_v4;
+
+                string blockIPv4FileHeader = blocksReader.ReadLine();
+                if (!blockIPv4FileHeader.Equals(block_IPv4_File_Header))
+                {
+                    throw new Exception($"Некорректный заголовок файла данных {blockIPv4FileName}");
+                }
+                //Заполняем таблицы.
+                while (!blocksReader.EndOfStream)
+                {
+                    block = GetBlockIPv4DataRow(blocksReader.ReadLine());
+                    if (block != null)
+                    {
+                        blocksIPv4Table.Rows.Add(block);
+                        ip_v4 = GetIPv4DataRow(block[0] as string);
+                        if (ip_v4 != null) ipsV4Table.Rows.Add(ip_v4);
+                    }
+                }
+            }
+            finish = DateTime.Now;
+            Console.WriteLine($"Blocks IPv4 parsing complete at: {finish - startNew}");
+
+            //Обновляем данные в базе.
+            string sqlLocationsTableSelect = "SELECT * FROM \"CityLocations\";";
+            string sqlBlocksIPv4TableSelect = "SELECT * FROM \"Blocks_IPv4\";";
+            string sqlIPsV4TableSelect = "SELECT * FROM \"IPs_v4\";";
+
+            startNew = DateTime.Now;
+            Console.WriteLine($"Start update locations: {startNew}");
+            BatchUpdateDbTable(connectionString, sqlLocationsTableSelect, locationsTable, 0);
+            finish = DateTime.Now;
+            Console.WriteLine($"Locations update complete at: {finish - startNew}");
+
+            startNew = DateTime.Now;
+            Console.WriteLine($"Start update blocks IPv4: {startNew}");
+            BatchUpdateDbTable(connectionString, sqlBlocksIPv4TableSelect, blocksIPv4Table, 5000);
+            finish = DateTime.Now;
+            Console.WriteLine($"Blocks IPv4 update complete at: {finish - startNew}");
+
+            startNew = DateTime.Now;
+            Console.WriteLine($"Start update IP's v4: {startNew}");
+            BatchUpdateDbTable(connectionString, sqlIPsV4TableSelect, ipsV4Table, 5000);
+            finish = DateTime.Now;
+            Console.WriteLine($"IP's v4 update complete at: {finish - startNew}");
+
+            Console.WriteLine($"Complete all update operations at: {finish - start}");
         }
 
         //Создаёт коллекцию сущностей CityLocation из CSV-файла.
@@ -553,38 +673,43 @@ namespace DatabaseUpdater
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
             {
+                NpgsqlTransaction transaction = connection.BeginTransaction();
                 using (NpgsqlDataAdapter dataAdapter = new NpgsqlDataAdapter(sqlSelect, connection)) //Параметр sqlSelect связывает dataAdapter с определённой таблицей в базе данных. (Например: sqlSelect = "SELECT * FROM \"CitiLocations\";")
                 {
                     using (NpgsqlCommandBuilder commandBuilder = new NpgsqlCommandBuilder(dataAdapter))
                     {
                         dataAdapter.DeleteCommand = commandBuilder.GetDeleteCommand();
                         dataAdapter.DeleteCommand.UpdatedRowSource = UpdateRowSource.None;
+                        dataAdapter.DeleteCommand.Transaction = transaction;
                         dataAdapter.UpdateCommand = commandBuilder.GetUpdateCommand();
                         dataAdapter.UpdateCommand.UpdatedRowSource = UpdateRowSource.None;
+                        dataAdapter.UpdateCommand.Transaction = transaction;
                         dataAdapter.InsertCommand = commandBuilder.GetInsertCommand();
                         dataAdapter.InsertCommand.UpdatedRowSource = UpdateRowSource.None;
+                        dataAdapter.InsertCommand.Transaction = transaction;
                         dataAdapter.UpdateBatchSize = batchSize;
-                        dataAdapter.Update(dataTable);
+                        try
+                        {
+                            dataAdapter.Update(dataTable);
+                            transaction.Commit();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.Message);
+                            transaction.Rollback();
+                        }
                     }
                 }
             }
         }
 
         //Возвращает строку данных для CityLocations DataTable.
-        private static object[] GetLocationDataRow(string csvDataStr)
+        private static object[] GetLocationDataRow(string csvDataStr, char separator)
         {
             object[] result;
             string[] csvDataArr; 
 
-            if (csvDataStr.Contains(", "))
-            {
-                StringBuilder csvDataBuilder = new StringBuilder(csvDataStr);
-                csvDataBuilder.Replace(", ", "@");
-                csvDataBuilder.Replace(",", ";");
-                csvDataBuilder.Replace("@", ", ");
-                csvDataArr = csvDataBuilder.ToString().Split(new char[] { ';' }, StringSplitOptions.None);
-            }
-            else csvDataArr = csvDataStr.Split(new char[] { ',' }, StringSplitOptions.None);
+            csvDataArr = csvDataStr.Split(new char[] { separator }, StringSplitOptions.None);
 
             try
             {
