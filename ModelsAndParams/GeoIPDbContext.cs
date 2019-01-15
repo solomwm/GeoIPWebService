@@ -9,7 +9,6 @@ namespace Database
 
         public DbSet<CityLocation> CityLocations { get; set; }
         public DbSet<BlockIPv4> Blocks_IPv4 { get; set; }
-        public DbSet<IPv4> IPs_v4 { get; set; }
         public DbSet<UpdateInfo> Updates { get; set; }
 
         // Используется консольным приложением.

@@ -41,7 +41,7 @@ namespace DatabaseUpdater
                 //Парсим файл блоков IP. Создаём сущности BlocksIPv4 и IPv4.
                 start = DateTime.Now;
                 Console.WriteLine($"start parsing block IP's: {start}");
-                List<BlockIPv4> blocks = ParseAllBlocksIPv4(blockIPv4FileName, out List<IPv4> ip_s);
+                List<BlockIPv4> blocks = ParseAllBlocksIPv4(blockIPv4FileName/*, out List<IPv4> ip_s*/);
                 finish = DateTime.Now;
                 Console.WriteLine($"finish parsing block IP's from: {finish - start}");
 
@@ -69,7 +69,7 @@ namespace DatabaseUpdater
 
                     //Сохраняем IP-адреса
                     startNew = DateTime.Now;
-                    SaveIPs100(dbContext, ip_s);
+                    //SaveIPs100(dbContext, ip_s);
                     finish = DateTime.Now;
                     Console.WriteLine($"IP's complete from: {finish - startNew}");
                 }
@@ -165,7 +165,7 @@ namespace DatabaseUpdater
                 //Обновляем блоки IP.
                 BlockIPv4 dbBlock;
                 List<BlockIPv4> newBlocks = new List<BlockIPv4>();
-                List<IPv4> newIPs = new List<IPv4>();
+                //List<IPv4> newIPs = new List<IPv4>();
 
                 //Сортируем таблицы блоков для ускорения поиска.
                 dbContext.Blocks_IPv4.OrderBy(b => b.Geoname_Id);
@@ -192,7 +192,7 @@ namespace DatabaseUpdater
                         if (dbBlock == null)
                         {
                             newBlocks.Add(block);
-                            newIPs.Add(ParseIP(block.Network));
+                            //newIPs.Add(ParseIP(block.Network));
                         }
                         else if (!block.Equals(dbBlock))
                         {
@@ -233,7 +233,7 @@ namespace DatabaseUpdater
                         if (!dbContext.Blocks_IPv4.Any(b => b.Network == block.Network))
                         {
                             newBlocks.Add(block);
-                            newIPs.Add(ParseIP(block.Network));
+                            //newIPs.Add(ParseIP(block.Network));
                         }
                         blocksCount++;
                     }
@@ -260,7 +260,7 @@ namespace DatabaseUpdater
                     //Сохраняем новые IP.
                     startNew = DateTime.Now;
                     Console.WriteLine($"start saving new IP: {startNew}");
-                    SaveIPs100(dbContext, newIPs);
+                    //SaveIPs100(dbContext, newIPs);
                     finish = DateTime.Now;
                     Console.WriteLine($"{newBlocksCount} new IP's saved from: {finish - startNew}");
                 }
@@ -278,12 +278,11 @@ namespace DatabaseUpdater
         }
 
         //Обновляет базу, используя ADO DataAdapter и DataTable.
-        public static void DatabaseUpdateADO(string connectionString, string blockIPv4FileName, string locationFileName)
+        public static bool DatabaseUpdateADO(string connectionString, string blockIPv4FileName, string locationFileName)
         {
             DateTime start, startNew, finish;
             start = DateTime.Now;
             Console.WriteLine($"Start update operations now: {start}");
-            
             //Создаём таблицы DataTable.
             DataTable locationsTable = CreateDataTable("\"CityLocations\"", new KeyValuePair<string, string>[]
             {
@@ -336,18 +335,18 @@ namespace DatabaseUpdater
                 {
                     throw new Exception($"Некорректный заголовок файла данных {locationFileName}");
                 }
-                
+
                 //Нормализуем csv-данные.
-                StringBuilder buffer = new StringBuilder(locationsReader.ReadToEnd());
-                buffer.Replace(", ", "@");
-                buffer.Replace(",", ";");
-                buffer.Replace("@", ", ");
-                bufferArr = buffer.ToString().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                //StringBuilder buffer = new StringBuilder(locationsReader.ReadToEnd());
+                //buffer.Replace(", ", "@");
+                //buffer.Replace(",", ";");
+                //buffer.Replace("@", ", ");
+                bufferArr = locationsReader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
                 //Заполняем таблицу.
                 for (int i = 0; i < bufferArr.Length; i++)
                 {
-                    location = GetLocationDataRow(bufferArr[i], ';');
+                    location = GetLocationDataRow(bufferArr[i]);
                     if (location != null) locationsTable.Rows.Add(location);
                 }
             }
@@ -368,16 +367,29 @@ namespace DatabaseUpdater
                     throw new Exception($"Некорректный заголовок файла данных {blockIPv4FileName}");
                 }
                 //Заполняем таблицы.
-                while (!blocksReader.EndOfStream)
+                int blocksCount = 0;
+                Timer timer = new Timer(30000) { AutoReset = true };
+
+                timer.Elapsed += delegate 
                 {
-                    block = GetBlockIPv4DataRow(blocksReader.ReadLine());
-                    if (block != null)
-                    {
-                        blocksIPv4Table.Rows.Add(block);
-                        ip_v4 = GetIPv4DataRow(block[0] as string);
-                        if (ip_v4 != null) ipsV4Table.Rows.Add(ip_v4);
-                    }
-                }
+                    Console.WriteLine($"{blocksCount} records parsed.");
+                    Console.CursorTop--;
+                };
+
+                //timer.Start();
+                //while (!blocksReader.EndOfStream)
+                //{
+                //    block = GetBlockIPv4DataRow(blocksReader.ReadLine());
+                //    if (block != null)
+                //    {
+                //        blocksIPv4Table.Rows.Add(block);
+                //        ip_v4 = GetIPv4DataRow((string)block[0]);
+                //        if (ip_v4 != null) ipsV4Table.Rows.Add(ip_v4);
+                //        blocksCount++;
+                //    }
+                //}
+                //timer.Stop();
+                //Console.WriteLine($"{blocksCount} records parsed.");
             }
             finish = DateTime.Now;
             Console.WriteLine($"Blocks IPv4 parsing complete at: {finish - startNew}");
@@ -389,23 +401,28 @@ namespace DatabaseUpdater
 
             startNew = DateTime.Now;
             Console.WriteLine($"Start update locations: {startNew}");
-            BatchUpdateDbTable(connectionString, sqlLocationsTableSelect, locationsTable, 0);
+            bool locUpdRes = BatchUpdateDbTable(connectionString, sqlLocationsTableSelect, locationsTable, 0);
             finish = DateTime.Now;
-            Console.WriteLine($"Locations update complete at: {finish - startNew}");
+            Console.WriteLine($"{(locUpdRes ? "Locations update complete at: " : "An error occurred while updating locations: ")} " +
+                $"{finish - startNew}");
 
             startNew = DateTime.Now;
             Console.WriteLine($"Start update blocks IPv4: {startNew}");
-            BatchUpdateDbTable(connectionString, sqlBlocksIPv4TableSelect, blocksIPv4Table, 5000);
+            bool blocksUpdRes = BatchUpdateDbTable(connectionString, sqlBlocksIPv4TableSelect, blocksIPv4Table, 5000);
             finish = DateTime.Now;
-            Console.WriteLine($"Blocks IPv4 update complete at: {finish - startNew}");
+            Console.WriteLine($"{(blocksUpdRes ? "Blocks IPv4 update complete at: " : "An error occurred while updating blocks IPv4: ")} " +
+                $"{finish - startNew}");
 
             startNew = DateTime.Now;
             Console.WriteLine($"Start update IP's v4: {startNew}");
-            BatchUpdateDbTable(connectionString, sqlIPsV4TableSelect, ipsV4Table, 5000);
+            bool ipsUpdRes = BatchUpdateDbTable(connectionString, sqlIPsV4TableSelect, ipsV4Table, 5000);
             finish = DateTime.Now;
-            Console.WriteLine($"IP's v4 update complete at: {finish - startNew}");
-
-            Console.WriteLine($"Complete all update operations at: {finish - start}");
+            Console.WriteLine($"{(ipsUpdRes? "IP's v4 update complete at: " : "An error occurred while updating IP's v4: ")} " +
+                $"{finish - startNew}");
+            bool result = locUpdRes && blocksUpdRes && ipsUpdRes;
+            Console.WriteLine($"{(result? "Complete all update operations at: " : "Some errors occured while updating: ")} " +
+                $"{finish - start}");
+            return result;
         }
 
         //Создаёт коллекцию сущностей CityLocation из CSV-файла.
@@ -436,33 +453,33 @@ namespace DatabaseUpdater
         }
 
         //Создаёт коллекции сущностей BlockIPv4 и IPv4 из CSV-файла.
-        public static List<BlockIPv4> ParseAllBlocksIPv4(string blockIPv4FileName, out List<IPv4> ipList)
-        {
-            BlockIPv4 block;
-            IPv4 ip_v4;
-            List<BlockIPv4> blocks = new List<BlockIPv4>();
-            ipList = new List<IPv4>();
+        //public static List<BlockIPv4> ParseAllBlocksIPv4(string blockIPv4FileName, out List<IPv4> ipList)
+        //{
+        //    BlockIPv4 block;
+        //    IPv4 ip_v4;
+        //    List<BlockIPv4> blocks = new List<BlockIPv4>();
+        //    ipList = new List<IPv4>();
 
-            using (var blockIPv4FileReader = new StreamReader(blockIPv4FileName))
-            {
-                string blockIPv4FileHeader = blockIPv4FileReader.ReadLine();
-                if (!blockIPv4FileHeader.Equals(block_IPv4_File_Header))
-                {
-                    throw new Exception($"Некорректный заголовок файла данных {blockIPv4FileName}");
-                }
-                while (!blockIPv4FileReader.EndOfStream)
-                {
-                    block = ParseBlockIPv4(blockIPv4FileReader.ReadLine());
-                    if (block != null)
-                    {
-                        blocks.Add(block);
-                        ip_v4 = ParseIP(block.Network);
-                        if (ip_v4 != null) ipList.Add(ip_v4);
-                    }
-                }
-            }
-            return blocks;
-        }
+        //    using (var blockIPv4FileReader = new StreamReader(blockIPv4FileName))
+        //    {
+        //        string blockIPv4FileHeader = blockIPv4FileReader.ReadLine();
+        //        if (!blockIPv4FileHeader.Equals(block_IPv4_File_Header))
+        //        {
+        //            throw new Exception($"Некорректный заголовок файла данных {blockIPv4FileName}");
+        //        }
+        //        while (!blockIPv4FileReader.EndOfStream)
+        //        {
+        //            block = ParseBlockIPv4(blockIPv4FileReader.ReadLine());
+        //            if (block != null)
+        //            {
+        //                blocks.Add(block);
+        //                ip_v4 = ParseIP(block.Network);
+        //                if (ip_v4 != null) ipList.Add(ip_v4);
+        //            }
+        //        }
+        //    }
+        //    return blocks;
+        //}
 
         //Создаёт коллекцию сущностей BlockIPv4 из CSV-файла.
         public static List<BlockIPv4> ParseAllBlocksIPv4(string blockIPv4FileName)
@@ -602,17 +619,17 @@ namespace DatabaseUpdater
 
         //Создаёт сущность IPv4.
         //В качестве sourceData передаётся значение первичного ключа BlockIPv4 (поле network из CSV-таблицы)
-        private static IPv4 ParseIP(string sourceData) // sourceData == "1.0.76.0/22";
-        {
-            string[] sourceArr = sourceData.Split('/'); //sourceArr = { "1.0.76.0", "22" };
-            if (Regex.IsMatch(sourceArr[0], GlobalParams.IPv4_Regex_Pattern))
-                return new IPv4 { IP = sourceArr[0], BlockIPv4_Id = sourceData };
-            else
-            {
-                Console.WriteLine(sourceData);
-                return null;
-            }
-        }
+        //private static IPv4 ParseIP(string sourceData) // sourceData == "1.0.76.0/22";
+        //{
+        //    string[] sourceArr = sourceData.Split('/'); //sourceArr = { "1.0.76.0", "22" };
+        //    if (Regex.IsMatch(sourceArr[0], GlobalParams.IPv4_Regex_Pattern))
+        //        return new IPv4 { IP = sourceArr[0], BlockIPv4_Id = sourceData };
+        //    else
+        //    {
+        //        Console.WriteLine(sourceData);
+        //        return null;
+        //    }
+        //}
 
         //Сохраняет блоки-IP в базе данных порциями по 100000.
         private static void SaveBlocks100(GeoIPDbContext dbContext, List<BlockIPv4> blocks)
@@ -642,37 +659,38 @@ namespace DatabaseUpdater
         }
 
         //Сохраняет IPv4 в базе данных порциями по 100000.
-        private static void SaveIPs100(GeoIPDbContext dbContext, List<IPv4> ip_s)
-        {
-            List<IPv4> ip_sRange = new List<IPv4>(100000);
-            DateTime start100;
-            DateTime finish;
+        //private static void SaveIPs100(GeoIPDbContext dbContext, List<IPv4> ip_s)
+        //{
+        //    List<IPv4> ip_sRange = new List<IPv4>(100000);
+        //    DateTime start100;
+        //    DateTime finish;
 
-            while (ip_s.Count > 0)
-            {
-                start100 = DateTime.Now;
-                if (ip_s.Count > 100000)
-                {
-                    ip_sRange = ip_s.GetRange(0, 100000);
-                    ip_s.RemoveRange(0, 100000);
-                    dbContext.IPs_v4.AddRange(ip_sRange);
-                }
-                else
-                {
-                    dbContext.IPs_v4.AddRange(ip_s);
-                    ip_s.Clear();
-                }
-                dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
-                finish = DateTime.Now;
-                Console.WriteLine($"{ip_sRange.Count} IP's complete from: {finish - start100}");
-            }
-        }
+        //    while (ip_s.Count > 0)
+        //    {
+        //        start100 = DateTime.Now;
+        //        if (ip_s.Count > 100000)
+        //        {
+        //            ip_sRange = ip_s.GetRange(0, 100000);
+        //            ip_s.RemoveRange(0, 100000);
+        //            dbContext.IPs_v4.AddRange(ip_sRange);
+        //        }
+        //        else
+        //        {
+        //            dbContext.IPs_v4.AddRange(ip_s);
+        //            ip_s.Clear();
+        //        }
+        //        dbContext.SaveChanges(); // Не забывам сохранить изменения в базе данных!!!
+        //        finish = DateTime.Now;
+        //        Console.WriteLine($"{ip_sRange.Count} IP's complete from: {finish - start100}");
+        //    }
+        //}
 
         //Пакетное обновление таблицы базы данных.
-        private static void BatchUpdateDbTable(string connectionString, string sqlSelect, DataTable dataTable, int batchSize)
+        private static bool BatchUpdateDbTable(string connectionString, string sqlSelect, DataTable dataTable, int batchSize)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
             {
+                connection.Open();
                 NpgsqlTransaction transaction = connection.BeginTransaction();
                 using (NpgsqlDataAdapter dataAdapter = new NpgsqlDataAdapter(sqlSelect, connection)) //Параметр sqlSelect связывает dataAdapter с определённой таблицей в базе данных. (Например: sqlSelect = "SELECT * FROM \"CitiLocations\";")
                 {
@@ -692,11 +710,13 @@ namespace DatabaseUpdater
                         {
                             dataAdapter.Update(dataTable);
                             transaction.Commit();
+                            return true;
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine(e.Message);
                             transaction.Rollback();
+                            return false;
                         }
                     }
                 }
@@ -704,12 +724,20 @@ namespace DatabaseUpdater
         }
 
         //Возвращает строку данных для CityLocations DataTable.
-        private static object[] GetLocationDataRow(string csvDataStr, char separator)
+        private static object[] GetLocationDataRow(string csvDataStr)
         {
             object[] result;
-            string[] csvDataArr; 
+            string[] csvDataArr;
 
-            csvDataArr = csvDataStr.Split(new char[] { separator }, StringSplitOptions.None);
+            if (csvDataStr.Contains(", "))
+            {
+                StringBuilder csvDataStrBuilder = new StringBuilder(csvDataStr);
+                csvDataStrBuilder.Replace(", ", "@");
+                csvDataStrBuilder.Replace(",", ";");
+                csvDataStrBuilder.Replace("@", ", ");
+                csvDataArr = csvDataStrBuilder.ToString().Split(new char[] { ';' }, StringSplitOptions.None);
+            }
+            else csvDataArr = csvDataStr.Split(new char[] { ',' }, StringSplitOptions.None);
 
             try
             {
@@ -717,7 +745,7 @@ namespace DatabaseUpdater
                 {
                     int.Parse(csvDataArr[0]), csvDataArr[1], csvDataArr[2], csvDataArr[3], csvDataArr[4], csvDataArr[5],
                     csvDataArr[6], csvDataArr[7], csvDataArr[8], csvDataArr[9], csvDataArr[10], csvDataArr[11], csvDataArr[12],
-                    int.TryParse(csvDataArr[13], out int res) ? new { Value = Convert.ToBoolean(res) }  : null
+                    int.TryParse(csvDataArr[13], out int res) ? Convert.ToBoolean(res) : false
                 };
                 return result;
             }
@@ -739,15 +767,15 @@ namespace DatabaseUpdater
                 result = new object[]
                 {
                     csvDataArr[0],
-                    csvDataArr[1] == "" ? null : new {Value = int.Parse(csvDataArr[1])},
-                    csvDataArr[2] == "" ? null : new {Value = int.Parse(csvDataArr[2])},
-                    csvDataArr[3] == "" ? null : new {Value = int.Parse(csvDataArr[3])},
-                    csvDataArr[4] == "" ? null : new {Value = Convert.ToBoolean(int.Parse(csvDataArr[4]))},
-                    csvDataArr[5] == "" ? null : new {Value = Convert.ToBoolean(int.Parse(csvDataArr[5]))},
+                    csvDataArr[1] == "" ? 0 : int.Parse(csvDataArr[1]),
+                    csvDataArr[2] == "" ? 0 : int.Parse(csvDataArr[2]),
+                    csvDataArr[3] == "" ? 0 : int.Parse(csvDataArr[3]),
+                    Convert.ToBoolean(int.Parse(csvDataArr[4])),
+                    Convert.ToBoolean(int.Parse(csvDataArr[5])),
                     csvDataArr[6],
-                    csvDataArr[7] == "" ? null : new {Value = double.Parse(csvDataArr[7], provider)},
-                    csvDataArr[8] == "" ? null : new {Value = double.Parse(csvDataArr[8], provider)},
-                    csvDataArr[9] == "" ? null : new {Value = int.Parse(csvDataArr[9])}
+                    csvDataArr[7] == "" ? 0 : double.Parse(csvDataArr[7], provider),
+                    csvDataArr[8] == "" ? 0 : double.Parse(csvDataArr[8], provider),
+                    csvDataArr[9] == "" ? 0 : int.Parse(csvDataArr[9])
                 };
             }
             catch (Exception e)
