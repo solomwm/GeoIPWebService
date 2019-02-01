@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Xml.Serialization;
+using Tools;
 
 namespace DatabaseUpdater
 {
@@ -116,7 +117,7 @@ namespace DatabaseUpdater
             DateTime startNext;
 
             //download updates;
-            //string md5FileName, dataFileName;
+            //string md5FileName, dataFileName, md5Hash;
             //startNext = DateTime.Now;
             //Console.WriteLine($"Загрузка обновлений: {startNext}");
             //if (Utilites.DownloadFile(config.MD5FileUrl, config.TempFolder, out md5FileName))
@@ -164,7 +165,7 @@ namespace DatabaseUpdater
             //install updates;
             startNext = DateTime.Now;
             Console.WriteLine($"Установка обновлений: {startNext}");
-            bool updRes = Updater.DatabaseUpdateADO(config.ConnectionString, /*blocksFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Blocks-IPv4.csv", /*locationsFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20181211\GeoLite2-City-Locations-ru.csv");
+            bool updRes = Updater.DatabaseUpdateADO(config.ConnectionString, /*blocksFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20190129\GeoLite2-City-Blocks-IPv4.csv", /*locationsFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20190129\GeoLite2-City-Locations-ru.csv");
             if (updRes)
             {
                 //dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });

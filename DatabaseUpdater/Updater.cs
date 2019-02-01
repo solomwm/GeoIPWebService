@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using Timer = System.Timers.Timer;
+using System.Timers;
 
 namespace DatabaseUpdater
 {
@@ -21,137 +21,44 @@ namespace DatabaseUpdater
         public static bool DatabaseUpdateADO(string connectionString, string blockIPv4FileName, string locationFileName)
         {
             DateTime start, startNew, finish;
+            bool resultLoc = false;
+            bool resultBlockv4 = false;
             start = DateTime.Now;
             Console.WriteLine($"Start update operations now: {start}");
-            //Создаём таблицы DataTable.
-            DataTable locationsTable = CreateDataTable("\"CityLocations\"", new KeyValuePair<string, string>[]
+
+            try
             {
-                new KeyValuePair<string, string>("Geoname_Id", "System.Int32"),
-                new KeyValuePair<string, string>("Local_Code", "System.String"),
-                new KeyValuePair<string, string>("Continent_Code", "System.String"),
-                new KeyValuePair<string, string>("Continent_Name", "System.String"),
-                new KeyValuePair<string, string>("Country_Iso_Code", "System.String"),
-                new KeyValuePair<string, string>("Country_Name", "System.String"),
-                new KeyValuePair<string, string>("Subdivision_1_Iso_Code", "System.String"),
-                new KeyValuePair<string, string>("Subdivision_1_Name", "System.String"),
-                new KeyValuePair<string, string>("Subdivision_2_Iso_Code", "System.String"),
-                new KeyValuePair<string, string>("Subdivision_2_Name", "System.String"),
-                new KeyValuePair<string, string>("City_Name", "System.String"),
-                new KeyValuePair<string, string>("Metro_Code", "System.String"),
-                new KeyValuePair<string, string>("Time_Zone", "System.String"),
-                new KeyValuePair<string, string>("Is_In_European_Union","System.Boolean")
-            }, false);
-            DataTable blocksIPv4Table = CreateDataTable("\"Blocks_IPv4\"", new KeyValuePair<string, string>[] 
-            {
-                new KeyValuePair<string, string>("Network", "System.String"),
-                new KeyValuePair<string, string>("Geoname_Id", "System.Int32"),
-                new KeyValuePair<string, string>("Registered_Country_Geoname_Id", "System.Int32"),
-                new KeyValuePair<string, string>("Represented_Country_Geoname_Id", "System.Int32"),
-                new KeyValuePair<string, string>("Is_Anonymous_Proxy", "System.Boolean"),
-                new KeyValuePair<string, string>("Is_Satellite_Provider", "System.Boolean"),
-                new KeyValuePair<string, string>("Postal_Code", "System.String"),
-                new KeyValuePair<string, string>("Latitude", "System.Double"),
-                new KeyValuePair<string, string>("Longitude", "System.Double"),
-                new KeyValuePair<string, string>("Accuracy_Radius", "System.Int32"),
-            }, false);
-            //Создаём DataSet.
-            DataSet geoIPDataSet = new DataSet("GeoIPStore");
-            geoIPDataSet.Tables.AddRange(new DataTable[] { locationsTable, blocksIPv4Table });
+                startNew = DateTime.Now;
+                Console.WriteLine($"Start clear data tables: {startNew}");
+                ClearDbTables(connectionString);
+                finish = DateTime.Now;
+                Console.WriteLine($"Data tables clear complete at: {finish - startNew}");
 
-            ForeignKeyConstraint foreignKey = new ForeignKeyConstraint(locationsTable.Columns["Geoname_Id"], blocksIPv4Table.Columns["Geoname_Id"])
-            {
-                ConstraintName = "LocationIPForeignKey",
-                DeleteRule = Rule.SetNull,
-                UpdateRule = Rule.Cascade
-            };
+                startNew = DateTime.Now;
+                Console.WriteLine($"Start update locations: {startNew}");
+                resultLoc = BatchUpdateDbTable(connectionString, "\"CityLocations\"", locationFileName);
+                finish = DateTime.Now;
+                Console.WriteLine($"Locations update complete at: {finish - startNew}");
 
-            geoIPDataSet.Tables["\"Blocks_IPv4\""].Constraints.Add(foreignKey);
-            geoIPDataSet.EnforceConstraints = true;
-            geoIPDataSet.Relations.Add("LocationIP", locationsTable.Columns["Geoname_Id"], blocksIPv4Table.Columns["Geoname_Id"]);
-
-            //Заполняем таблицы DataTable данными из csv-файлов.
-            //Заполняем locationsTable.
-            startNew = DateTime.Now;
-            Console.WriteLine($"Start parsing locations: {startNew}");
-
-            using (StreamReader locationsReader = new StreamReader(locationFileName))
-            {
-                object[] location;
-                string[] bufferArr;
-
-                string locationFileHeader = locationsReader.ReadLine();
-                if (!locationFileHeader.Equals(location_File_Header))
-                {
-                    throw new Exception($"Некорректный заголовок файла данных {locationFileName}");
-                }
-                bufferArr = locationsReader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-                //Заполняем таблицу.
-                for (int i = 0; i < bufferArr.Length; i++)
-                {
-                    location = GetLocationDataRow(bufferArr[i]);
-                    if (location != null) locationsTable.Rows.Add(location);
-                }
-                locationsTable.Rows.Add(new object[] { 0 }); // Для IP, у которых отсутствует локация.
+                startNew = DateTime.Now;
+                Console.WriteLine($"Start update blocks IP v4: {startNew}");
+                resultBlockv4 = BatchUpdateDbTable(connectionString, "\"Blocks_IPv4\"", blockIPv4FileName);
+                finish = DateTime.Now;
+                Console.WriteLine($"Blocks IP v4 update complete at: {finish - startNew}");
             }
-            finish = DateTime.Now;
-            Console.WriteLine($"Locations parsing complete at: {finish - startNew}");
-
-            //Заполняем blocksIPv4Table.
-            startNew = DateTime.Now;
-            Console.WriteLine($"Start parsing blocks IPv4: {startNew}");
-
-            using (StreamReader blocksReader = new StreamReader(blockIPv4FileName))
+            catch (Exception e)
             {
-                object[] block;
-
-                string blockIPv4FileHeader = blocksReader.ReadLine();
-                if (!blockIPv4FileHeader.Equals(block_IPv4_File_Header))
-                {
-                    throw new Exception($"Некорректный заголовок файла данных {blockIPv4FileName}");
-                }
-                //string[] bufferArr = blocksReader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries); //OutOfMemory Exeption.
-                //Заполняем таблицу.
-                int blocksCount = 0;
-                Timer timer = new Timer(20000) { AutoReset = true };
-
-                timer.Elapsed += delegate
-                {
-                    Console.WriteLine($"{blocksCount} records parsed.");
-                    Console.CursorTop--;
-                };
-
-                timer.Start();
-                while (!blocksReader.EndOfStream)
-                {
-                    block = GetBlockIPv4DataRow(blocksReader.ReadLine());
-                    if (block != null)
-                    {
-                        blocksIPv4Table.Rows.Add(block);
-                        blocksCount++;
-                    }
-                }
-                timer.Stop();
-                Console.WriteLine($"{blocksCount} records parsed.");
+                Console.WriteLine(e.Message);
             }
-            finish = DateTime.Now;
-            Console.WriteLine($"Blocks IPv4 parsing complete at: {finish - startNew}");
 
-            //Обновляем данные в базе.
-            string sqlLocationsTableSelect = "SELECT * FROM \"CityLocations\";";
-            string sqlBlocksIPv4TableSelect = "SELECT * FROM \"Blocks_IPv4\";";
-            string sqlDataSetSelect = string.Concat(sqlLocationsTableSelect, sqlBlocksIPv4TableSelect);
-
-            startNew = DateTime.Now;
-            Console.WriteLine($"Start update database: {startNew}");
-            bool result = BatchUpdateDbTable(connectionString, sqlDataSetSelect, geoIPDataSet);
+            bool result = resultLoc && resultBlockv4;
             finish = DateTime.Now;
-            Console.WriteLine($"{(result ? "Database update compleate at: " : "An error occurred while updating database: ")} " +
-                $"{finish - startNew}");
+            Console.WriteLine(value: $"{(result ? "Database update compleate at: " : "An error occurred while updating database: ")} " +
+                $"{finish - start}");
             return result;
         }
 
-        //Создаёт коллекцию сущностей CityLocation из CSV-файла.
+        //Создаёт коллекцию сущностей CityLocation из CSV-файла. (-/+)
         public static List<CityLocation> ParseAllLocations(string locationFileName)
         {
             List<CityLocation> locations = new List<CityLocation>();
@@ -178,7 +85,7 @@ namespace DatabaseUpdater
             return locations;
         }
 
-        //Создаёт коллекцию сущностей BlockIPv4 из CSV-файла.
+        //Создаёт коллекцию сущностей BlockIPv4 из CSV-файла. (-/+)
         public static List<BlockIPv4> ParseAllBlocksIPv4(string blockIPv4FileName)
         {
             BlockIPv4 block;
@@ -203,7 +110,7 @@ namespace DatabaseUpdater
             return blocks;
         }
 
-        //Проверяет наличие новых обновлений на сервере.
+        //Проверяет наличие новых обновлений на сервере. (+)
         public static bool CheckUpdate(UpdateInfo lastUpdate, string md5Url, out string message)
         {
             string md5Data = null;
@@ -233,7 +140,7 @@ namespace DatabaseUpdater
             return result;
         }
 
-        //Возвращает сущность последнего установленного обновления.
+        //Возвращает сущность последнего установленного обновления. (+)
         public static UpdateInfo GetLastUpdateInfo(GeoIPDbContext dbContext)
         {
             if (dbContext.Updates.Count() > 0)
@@ -241,7 +148,7 @@ namespace DatabaseUpdater
             else return null;
         }
         
-        //Создаёт сущность CityLocation из CSV-строки.    
+        //Создаёт сущность CityLocation из CSV-строки. (+/-)   
         private static CityLocation ParseLocation(string sourceData)
         {
             string[] sourceArr;
@@ -285,7 +192,7 @@ namespace DatabaseUpdater
             return location;
         }
 
-        //Создаёт сущность BlockIPv4 из CSV-строки. 
+        //Создаёт сущность BlockIPv4 из CSV-строки. (+/-)
         private static BlockIPv4 ParseBlockIPv4(string sourceData)
         {
             string[] sourceArr = sourceData.Split(new char[] { ',' }, StringSplitOptions.None);
@@ -316,111 +223,60 @@ namespace DatabaseUpdater
             return block;
         }
 
-        //Пакетное обновление таблицы базы данных.
-        private static bool BatchUpdateDbTable(string connectionString, string sqlSelect, DataSet dataSetSrc)
+        //Пакетное обновление таблицы базы данных. (++)
+        private static bool BatchUpdateDbTable(string connectionString, string tableName, string csvFilePath)
         {
-            using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
+            string copyFromCommand = $"COPY {tableName} FROM STDIN WITH (FORMAT CSV, HEADER TRUE)";
+            int allRowsCount = 0;
+            int rowCount = 0;
+            bool result = false;
+            if (File.Exists(csvFilePath))
             {
-                connection.Open();
-                NpgsqlTransaction transaction = connection.BeginTransaction();
-                using (NpgsqlDataAdapter dataAdapter = new NpgsqlDataAdapter(sqlSelect, connection)) //Параметр sqlSelect связывает dataAdapter с определённой таблицей в базе данных. (Например: sqlSelect = "SELECT * FROM \"CitiLocations\";")
+                Timer timer = new Timer(8000) { AutoReset = true };
+                timer.Elapsed += delegate
                 {
-                    dataAdapter.TableMappings.Add("Table", "\"CityLocations\"");
-                    dataAdapter.TableMappings.Add("Table1", "\"Blocks_IPv4\"");
-                    DataSet dataSetDb = new DataSet();
-                    dataAdapter.Fill(dataSetDb);
-                    //Выбираем строки для удаления по ItemArray[0] ("Geoname_Id"), если таких нет в обновлениях, 
-                    //удаляем их из базы.
-                    //IEnumerable<DataRow> rowsToDelInCityLoc = dataSetDb.Tables["\"CityLocations\""].AsEnumerable().TakeWhile
-                    //    (r => !dataSetSrc.Tables["\"CityLocations\""].AsEnumerable().Any
-                    //    (rs => rs.ItemArray[0] == r.ItemArray[0]));
+                    Console.WriteLine($"{rowCount} rows from {allRowsCount} complete. ({(float)rowCount/allRowsCount:p2})");
+                    Console.CursorTop--;
+                };
 
-                    //IEnumerable<DataRow> rowsToDelInBlocksIPv4 = dataSetDb.Tables["\"Blocks_IPv4\""].AsEnumerable().TakeWhile
-                    //    (r => dataSetSrc.Tables["\"Blocks_IPv4\""].AsEnumerable().Any
-                    //    (rs => rs.ItemArray[0] != r.ItemArray[0]));
-                    //IEnumerable<DataRow> rowsToDelInBlocksIPv4 = from r in dataSetDb.Tables["\"Blocks_IPv4\""].AsEnumerable()
-                    //                                             where r.ItemArray[0];
+                IEnumerable<string> allRows = File.ReadLines(csvFilePath).Where(rw => rw != string.Empty);
+                allRowsCount = allRows.Count();
+                timer.Start();
 
-                    //foreach (DataRow row in rowsToDelInCityLoc)
-                    //{
-                    //    dataSetDb.Tables["\"CityLocations\""].Rows.Remove(row);
-                    //}
-
-                    //foreach (DataRow row in rowsToDelInBlocksIPv4)
-                    //{
-                    //    dataSetDb.Tables["\"Blocks_IPv4\""].Rows.Remove(row);
-                    //}
-
-                    DateTime start = DateTime.Now;
-                    Console.WriteLine($"Merge1 start: {start}");
-                    dataSetDb.Tables[0].Merge(dataSetSrc.Tables["\"CityLocations\""], true);
-                    DateTime finish = DateTime.Now;
-                    Console.WriteLine($"Merge1 complete at: {finish - start}");
-
-                    start = DateTime.Now;
-                    Console.WriteLine($"Merge2 start: {start}");
-                    dataSetDb.Tables[1].Merge(dataSetSrc.Tables["\"Blocks_IPv4\""], true);
-                    finish = DateTime.Now;
-                    Console.WriteLine($"Merge2 complete at: {finish - start}");
-
-                    using (NpgsqlCommandBuilder commandBuilder = new NpgsqlCommandBuilder(dataAdapter))
+                using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
+                {
+                    connection.Open();
+                    try
                     {
-                        dataAdapter.DeleteCommand = commandBuilder.GetDeleteCommand();
-                        dataAdapter.UpdateCommand = commandBuilder.GetUpdateCommand();
-                        dataAdapter.InsertCommand = commandBuilder.GetInsertCommand();
-                        dataAdapter.DeleteCommand.Transaction = transaction;
-                        dataAdapter.UpdateCommand.Transaction = transaction;
-                        dataAdapter.InsertCommand.Transaction = transaction;
-                        int rowUpdatedCount = 0;
-                        int allRowsCount = 0;
-                        for (int i = 0; i < dataSetSrc.Tables.Count; i++)
+                        using (TextWriter writer = connection.BeginTextImport(copyFromCommand))
                         {
-                            allRowsCount += dataSetSrc.Tables[i].Rows.Count;
-                        }
-
-                        dataAdapter.RowUpdated += delegate(object sender, NpgsqlRowUpdatedEventArgs eventArgs) 
-                        {
-                            if (eventArgs.Status == UpdateStatus.ErrorsOccurred)
+                            foreach (string dataRow in allRows)
                             {
-                                Console.WriteLine(eventArgs.Errors.Message);
-                                eventArgs.Status = UpdateStatus.SkipCurrentRow;
+                                writer.WriteLine(dataRow);
+                                rowCount++;
                             }
-                            rowUpdatedCount += eventArgs.RowCount;
-                        };
-
-                        Timer timer = new Timer(20000) { AutoReset = true };
-                        timer.Elapsed += delegate
-                        {
-                            Console.WriteLine($"{rowUpdatedCount} rows from {allRowsCount} complete. " +
-                                $"({rowUpdatedCount / allRowsCount * 100:f2} %)");
-                            Console.CursorTop--;
-                        };
-                        timer.Start();
-
-                        try
-                        {
-                            dataAdapter.Update(dataSetDb);
-                            transaction.Commit();
-                            timer.Stop();
-                            Console.WriteLine($"{rowUpdatedCount} rows from {allRowsCount} complete. " +
-                               $"({rowUpdatedCount / allRowsCount * 100:f2})");
-                            return true;
+                            writer.Flush();
+                            writer.Close();
                         }
-                        catch (Exception e)
-                        {
-                            timer.Stop();
-                            Console.WriteLine($"{rowUpdatedCount} rows from {allRowsCount} complete. " +
-                               $"({rowUpdatedCount / allRowsCount * 100:f2})");
-                            Console.WriteLine(e.Message);
-                            transaction.Rollback();
-                            return false;
-                        }
+                        result = true;
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.Message);
+                        result = false;
+                    }
+                    finally
+                    {
+                        timer.Stop();
+                        Console.WriteLine($"{rowCount} rows complete. (100%)");
                     }
                 }
             }
+            else throw new Exception($"File {csvFilePath} not found.");
+            return result;
         }
 
-        //Возвращает строку данных для CityLocations DataTable.
+        //Возвращает строку данных для CityLocations DataTable. (-)
         private static object[] GetLocationDataRow(string csvDataStr)
         {
             object[] result;
@@ -453,7 +309,7 @@ namespace DatabaseUpdater
             }
         }
 
-        //Возвращает строку данных для BlocksIPv4 DataTable.
+        //Возвращает строку данных для BlocksIPv4 DataTable. (-)
         private static object[] GetBlockIPv4DataRow(string csvDataStr)
         {
             string[] csvDataArr = csvDataStr.Split(new char[] { ',' }, StringSplitOptions.None);
@@ -483,7 +339,7 @@ namespace DatabaseUpdater
             return result;
         }
 
-        //Создаёт таблицу DataTable. dataColumns.Key = "columnName"; dataColumns.Value = "typeName";
+        //Создаёт таблицу DataTable. dataColumns.Key = "columnName"; dataColumns.Value = "typeName"; (+)
         private static DataTable CreateDataTable(string tableName, KeyValuePair<string, string>[] dataColumns, bool pkAutoInc)
         {
             DataTable resultTable = new DataTable(tableName);
@@ -509,6 +365,18 @@ namespace DatabaseUpdater
             //Задаём первичный ключ и возвращаем результат.
             resultTable.PrimaryKey = new DataColumn[] { resultTable.Columns[0] };
             return resultTable;
+        }
+
+        private static void ClearDbTables(string connectionString)
+        {
+            using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
+            {
+                connection.Open();
+                NpgsqlCommand clearTable = new NpgsqlCommand("TRUNCATE TABLE \"Blocks_IPv4\"", connection);
+                clearTable.ExecuteNonQuery();
+                clearTable = new NpgsqlCommand("DELETE FROM \"CityLocations\"", connection);
+                clearTable.ExecuteNonQuery();
+            }
         }
     }
 }
