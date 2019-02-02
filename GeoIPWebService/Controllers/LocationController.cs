@@ -22,7 +22,7 @@ namespace GeoIPWebService.Controllers
         [HttpGet]
         public ActionResult<string> Get()
         {
-            return Ok($"База данных содержит {db.IPs_v4.Count()} IP-адресов, соответствующих {db.CityLocations.Count()} " +
+            return Ok($"База данных содержит {db.Blocks_IPv4.Count()} IP-адресов, соответствующих {db.CityLocations.Count()} " +
                 $"локациям.\n© 2018 - GeoIPWebService.");
         }
 
@@ -35,16 +35,15 @@ namespace GeoIPWebService.Controllers
                 return BadRequest(new { error = "Invalid IP: " + IP });
             }
 
-            IPv4 ip_v4 = db.IPs_v4.FirstOrDefault(ip => ip.IP == IP);
+            BlockIPv4 blockIPv4 = db.Blocks_IPv4.FirstOrDefault(bl => bl.Network.StartsWith(IP));
 
-            if (ip_v4 == null)
+            if (blockIPv4 == null)
             {
                 return NotFound(new { result = "IP: " + IP + " не найден." });
             }
 
-            ip_v4.BlockIPv4 = db.Blocks_IPv4.FirstOrDefault(bl => bl.Network == ip_v4.BlockIPv4_Id);
-            ip_v4.BlockIPv4.Location = db.CityLocations.FirstOrDefault(l => l.Geoname_Id == ip_v4.BlockIPv4.Geoname_Id);
-            return Ok(ip_v4.BlockIPv4);
+            blockIPv4.Location = db.CityLocations.FirstOrDefault(l => l.Geoname_Id == blockIPv4.Geoname_Id);
+            return Ok(blockIPv4);
         }
     }
 }

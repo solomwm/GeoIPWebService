@@ -7,9 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Database", "ModelsAndParams
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseUpdater", "DatabaseUpdater\DatabaseUpdater.csproj", "{DD1F0EC8-30A8-46A2-A354-38B70E883043}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeoIPWebService", "GeoIPWebService\GeoIPWebService.csproj", "{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GeoIPWebService", "GeoIPWebService\GeoIPWebService.csproj", "{4E91E656-BEE6-4EF7-8907-CB9E99BE6799}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tools", "Tools\Tools.csproj", "{A69775D8-BE65-457C-B877-09EE3E123EEF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tools", "Tools\Tools.csproj", "{A69775D8-BE65-457C-B877-09EE3E123EEF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

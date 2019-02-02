@@ -30,7 +30,15 @@ namespace DatabaseUpdater
                         Console.WriteLine("Подключение к базе...");
                         var dbCreated = db.Database.EnsureCreated();
                         Console.WriteLine($"Подключение установлено: {db.Database.ProviderName}");
-                        DoOperations(db, config);   
+                        if (CheckUpdates(db, config))
+                        {
+                            Console.WriteLine("Обновить сейчас? (y/n)");
+                            int answ = Console.Read();
+                            if (answ == 'y' || answ == 'Y')
+                            {
+                                DoOperations(db, config);
+                            }
+                        }
                     }
                 }
                 catch (Exception e)
@@ -105,77 +113,78 @@ namespace DatabaseUpdater
         static void DoOperations(GeoIPDbContext dbContext, Config config)
         {
             DateTime start = DateTime.Now;
-            string md5Hash;
+            DateTime finish;
+            DateTime startNext;
+
+            //download updates;
+            string md5FileName, dataFileName, md5Hash;
+            startNext = DateTime.Now;
+            Console.WriteLine($"Загрузка обновлений: {startNext}");
+            if (Utilites.DownloadFile(config.MD5FileUrl, config.TempFolder, out md5FileName))
+            {
+                using (StreamReader md5Reader = new StreamReader(md5FileName))
+                {
+                    md5Hash = md5Reader.ReadLine();
+                }
+                if (Utilites.DownloadFile(config.DataFileUrl, config.TempFolder, md5Hash, out dataFileName, out bool checkRes))
+                {
+                    Console.WriteLine($"Check MD5: {(checkRes ? "OK" : "failed")}");
+                }
+                else return;
+            }
+            else return;
+            finish = DateTime.Now;
+            Console.WriteLine($"Загрузка завершена: {finish - startNext}");
+
+            //extract updates;
+            startNext = DateTime.Now;
+            Console.WriteLine($"Распаковка обновлений: {startNext}");
+            string[] extractedFiles = Utilites.ExtractFromZip(dataFileName, config.CashFolder,
+                        new string[] { config.Locations_CSV_FileName, config.BlocksIPv4_CSV_FileName });
+            finish = DateTime.Now;
+            Console.WriteLine($"Распаковка завершена: {finish - startNext}");
+
+            //remove temporary files and ordering data;
+            startNext = DateTime.Now;
+            Console.WriteLine($"Удаление временных файлов: {startNext}");
+            string blocksFileName;
+            string locationsFileName = blocksFileName = string.Empty;
+
+            for (int i = 0; i < extractedFiles.Length; i++)
+            {
+                if (extractedFiles[i].EndsWith(config.Locations_CSV_FileName)) locationsFileName = extractedFiles[i];
+                else if (extractedFiles[i].EndsWith(config.BlocksIPv4_CSV_FileName)) blocksFileName = extractedFiles[i];
+            }
+
+            string cashedFilesPath = Path.GetDirectoryName(locationsFileName);
+            File.Move(md5FileName, Path.Combine(cashedFilesPath, Path.GetFileName(md5FileName)));
+            File.Move(dataFileName, Path.Combine(cashedFilesPath, Path.GetFileName(dataFileName)));
+            finish = DateTime.Now;
+            Console.WriteLine($"Удаление завершено: {finish - startNext}");
+
+            //install updates;
+            startNext = DateTime.Now;
+            Console.WriteLine($"Установка обновлений: {startNext}");
+            bool updRes = Updater.DatabaseUpdate(config.ConnectionString, /*blocksFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20190129\GeoLite2-City-Blocks-IPv4.csv", /*locationsFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20190129\GeoLite2-City-Locations-ru.csv");
+            if (updRes)
+            {
+                dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
+                dbContext.SaveChanges();
+            }
+            finish = DateTime.Now;
+            Console.WriteLine($"{(updRes ? "Установка успешно завершена: " : "Установка завершена с ошибками: ")} " +
+                $"{finish - startNext}");
+            Console.WriteLine($"Затраченное время: {finish - start}");
+        }
+
+        static bool CheckUpdates(GeoIPDbContext dbContext, Config config)
+        {
+            DateTime start = DateTime.Now;
             Console.WriteLine($"Выполняется проверка обновлений: {start}");
             bool checkResult = Updater.CheckUpdate(Updater.GetLastUpdateInfo(dbContext), config.MD5FileUrl, out string message);
             DateTime finish = DateTime.Now;
             Console.WriteLine($"Проверка обновлений завершена за {finish - start} с сообщением: {message}");
-
-            if (checkResult)
-            {
-                Console.WriteLine("Обновить сейчас? (y/n)");
-                int answ = Console.Read();
-                if (answ == 'y' || answ == 'Y')
-                {
-                    DateTime startNext;
-
-                    //download updates;
-                    string md5FileName, dataFileName;
-                    startNext = DateTime.Now;
-                    Console.WriteLine($"Загрузка обновлений: {startNext}");
-                    if (Utilites.DownloadFile(config.MD5FileUrl, config.TempFolder, out md5FileName))
-                    {
-                        using (StreamReader md5Reader = new StreamReader(md5FileName))
-                        {
-                            md5Hash = md5Reader.ReadLine();
-                        }
-                        if (Utilites.DownloadFile(config.DataFileUrl, config.TempFolder, md5Hash, out dataFileName, out bool checkRes))
-                        {
-                            Console.WriteLine($"Check MD5: {(checkRes ? "OK" : "failed")}");
-                        }
-                        else return;
-                    }
-                    else return;
-                    finish = DateTime.Now;
-                    Console.WriteLine($"Загрузка завершена: {finish - startNext}");
-
-                    //extract updates;
-                    startNext = DateTime.Now;
-                    Console.WriteLine($"Распаковка обновлений: {startNext}");
-                    string[] extractedFiles = Utilites.ExtractFromZip(dataFileName, config.CashFolder,
-                                new string[] { config.Locations_CSV_FileName, config.BlocksIPv4_CSV_FileName });
-                    finish = DateTime.Now;
-                    Console.WriteLine($"Распаковка завершена: {finish - startNext}");
-
-                    ////remove temporary files and ordering data;
-                    startNext = DateTime.Now;
-                    Console.WriteLine($"Удаление временных файлов: {startNext}");
-                    string blocksFileName;
-                    string locationsFileName = blocksFileName = string.Empty;
-
-                    for (int i = 0; i < extractedFiles.Length; i++)
-                    {
-                        if (extractedFiles[i].EndsWith(config.Locations_CSV_FileName)) locationsFileName = extractedFiles[i];
-                        else if (extractedFiles[i].EndsWith(config.BlocksIPv4_CSV_FileName)) blocksFileName = extractedFiles[i];
-                    }
-
-                    string cashedFilesPath = Path.GetDirectoryName(locationsFileName);
-                    File.Move(md5FileName, Path.Combine(cashedFilesPath, Path.GetFileName(md5FileName)));
-                    File.Move(dataFileName, Path.Combine(cashedFilesPath, Path.GetFileName(dataFileName)));
-                    finish = DateTime.Now;
-                    Console.WriteLine($"Удаление завершено: {finish - startNext}");
-
-                    //install updates;
-                    startNext = DateTime.Now;
-                    Console.WriteLine($"Установка обновлений: {startNext}");
-                    Updater.DatabaseUpdate(dbContext, blocksFileName, locationsFileName, true);
-                    dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
-                    dbContext.SaveChanges();
-                    finish = DateTime.Now;
-                    Console.WriteLine($"Установка завершена: {finish - startNext}");
-                }
-            }
-            Console.WriteLine($"Затраченное время: {finish - start}");
+            return checkResult;
         }
     }
 }
