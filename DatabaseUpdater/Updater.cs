@@ -135,6 +135,8 @@ namespace DatabaseUpdater
                                 flushCount = 0;
                             }
                         }
+                        timer.Stop();
+                        Console.WriteLine($"{rowCount} rows complete. (100%)");
                         DateTime start = DateTime.Now; 
                         Console.WriteLine("Commit data to server...");
                         writer.Close(); //"Exeption while reading from stream", if DataTable have to many rows and "Keepalive=default" in connectionString. See line 116. 
@@ -144,14 +146,9 @@ namespace DatabaseUpdater
                     }
                     catch (Exception e)
                     {
+                        timer.Stop();
                         Console.WriteLine(e.Message);
                         result = false;
-                    }
-                    finally
-                    {
-                        timer.Stop();
-                        Console.CursorTop++;
-                        Console.WriteLine($"{rowCount} rows complete. (100%)");
                     }
                 }
             }

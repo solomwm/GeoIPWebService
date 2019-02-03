@@ -165,7 +165,7 @@ namespace DatabaseUpdater
             //install updates;
             startNext = DateTime.Now;
             Console.WriteLine($"Установка обновлений: {startNext}");
-            bool updRes = Updater.DatabaseUpdate(config.ConnectionString, /*blocksFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20190129\GeoLite2-City-Blocks-IPv4.csv", /*locationsFileName*/@"d:\UserDocs\Documents\Hx100\Hybrid\GeoLite2\cash\GeoLite2-City-CSV_20190129\GeoLite2-City-Locations-ru.csv");
+            bool updRes = Updater.DatabaseUpdate(config.ConnectionString, blocksFileName, locationsFileName);
             if (updRes)
             {
                 dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
