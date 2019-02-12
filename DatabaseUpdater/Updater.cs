@@ -13,11 +13,12 @@ namespace DatabaseUpdater
 {
     static class Updater
     {
-        const string block_IPv4_File_Header = "network,geoname_id,registered_country_geoname_id,represented_country_geoname_id,is_anonymous_proxy,is_satellite_provider,postal_code,latitude,longitude,accuracy_radius";
+        const string block_IP_File_Header = "network,geoname_id,registered_country_geoname_id,represented_country_geoname_id,is_anonymous_proxy,is_satellite_provider,postal_code,latitude,longitude,accuracy_radius";
         const string location_File_Header = "geoname_id,locale_code,continent_code,continent_name,country_iso_code,country_name,subdivision_1_iso_code,subdivision_1_name,subdivision_2_iso_code,subdivision_2_name,city_name,metro_code,time_zone,is_in_european_union";
         
         //Обновляет базу.
-        public static bool DatabaseUpdate(string connectionString, string blockIPv4FileName, string locationFileName)
+        public static bool DatabaseUpdate(string connectionString, string blockIPv4FileName, string blockIPv6FileName, 
+            string locationFileName)
         {
             DateTime start, startNew, finish;
             bool resultLoc = false;
@@ -139,7 +140,7 @@ namespace DatabaseUpdater
                         Console.WriteLine($"{rowCount} rows complete. (100%)");
                         DateTime start = DateTime.Now; 
                         Console.WriteLine("Commit data to server...");
-                        writer.Close(); //"Exeption while reading from stream", if DataTable have to many rows and "Keepalive=default" in connectionString. See line 116. 
+                        writer.Close(); //"Exeption while reading from stream", if DataTable have to many rows and "Keepalive=default" in connectionString. See line 117. 
                         DateTime finish = DateTime.Now;
                         Console.WriteLine($"Complete at: {finish - start}");
                         result = true;
@@ -156,7 +157,7 @@ namespace DatabaseUpdater
             return result;
         }
 
-        //Очишает таблицы в базе.
+        //Очищает таблицы в базе.
         private static void ClearDbTables(string connectionString)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))

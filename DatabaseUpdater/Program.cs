@@ -13,6 +13,7 @@ namespace DatabaseUpdater
         const string tempFolder_Default = "tmp";
         const string locations_CSV_FileName_Default = "GeoLite2-City-Locations-ru.csv";
         const string blocksIPv4_CSV_FileName_Default = "GeoLite2-City-Blocks-IPv4.csv";
+        const string blocksIPv6_CSV_FileName_Default = "GeoLite2-City-Blocks-IPv6.csv";
         const string md5FileUrl_Default = "http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip.md5";
         const string dataFileUrl_Deafault = "http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip";
 
@@ -79,6 +80,7 @@ namespace DatabaseUpdater
                     TempFolder = currentDirectory + @"\" + tempFolder_Default,
                     Locations_CSV_FileName = locations_CSV_FileName_Default,
                     BlocksIPv4_CSV_FileName = blocksIPv4_CSV_FileName_Default,
+                    BlocksIPv6_CSV_FileName = blocksIPv6_CSV_FileName_Default,
                     MD5FileUrl = md5FileUrl_Default,
                     DataFileUrl = dataFileUrl_Deafault
                 };
@@ -117,10 +119,10 @@ namespace DatabaseUpdater
             DateTime startNext;
 
             //download updates;
-            string md5FileName, dataFileName, md5Hash;
+            string dataFileName, md5Hash;
             startNext = DateTime.Now;
             Console.WriteLine($"Загрузка обновлений: {startNext}");
-            if (Utilites.DownloadFile(config.MD5FileUrl, config.TempFolder, out md5FileName))
+            if (Utilites.DownloadFile(config.MD5FileUrl, config.TempFolder, out string md5FileName))
             {
                 using (StreamReader md5Reader = new StreamReader(md5FileName))
                 {
@@ -140,20 +142,21 @@ namespace DatabaseUpdater
             startNext = DateTime.Now;
             Console.WriteLine($"Распаковка обновлений: {startNext}");
             string[] extractedFiles = Utilites.ExtractFromZip(dataFileName, config.CashFolder,
-                        new string[] { config.Locations_CSV_FileName, config.BlocksIPv4_CSV_FileName });
+                        new string[] { config.Locations_CSV_FileName, config.BlocksIPv4_CSV_FileName, config.BlocksIPv6_CSV_FileName });
             finish = DateTime.Now;
             Console.WriteLine($"Распаковка завершена: {finish - startNext}");
 
             //remove temporary files and ordering data;
             startNext = DateTime.Now;
             Console.WriteLine($"Удаление временных файлов: {startNext}");
-            string blocksFileName;
-            string locationsFileName = blocksFileName = string.Empty;
+            string blocksIPv4FileName, blocksIPv6FileName;
+            string locationsFileName = blocksIPv4FileName = blocksIPv6FileName = string.Empty;
 
             for (int i = 0; i < extractedFiles.Length; i++)
             {
                 if (extractedFiles[i].EndsWith(config.Locations_CSV_FileName)) locationsFileName = extractedFiles[i];
-                else if (extractedFiles[i].EndsWith(config.BlocksIPv4_CSV_FileName)) blocksFileName = extractedFiles[i];
+                else if (extractedFiles[i].EndsWith(config.BlocksIPv4_CSV_FileName)) blocksIPv4FileName = extractedFiles[i];
+                else if (extractedFiles[i].EndsWith(config.BlocksIPv6_CSV_FileName)) blocksIPv6FileName = extractedFiles[i];
             }
 
             string cashedFilesPath = Path.GetDirectoryName(locationsFileName);
@@ -165,7 +168,7 @@ namespace DatabaseUpdater
             //install updates;
             startNext = DateTime.Now;
             Console.WriteLine($"Установка обновлений: {startNext}");
-            bool updRes = Updater.DatabaseUpdate(config.ConnectionString, blocksFileName, locationsFileName);
+            bool updRes = Updater.DatabaseUpdate(config.ConnectionString, blocksIPv4FileName, blocksIPv6FileName, locationsFileName);
             if (updRes)
             {
                 dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
