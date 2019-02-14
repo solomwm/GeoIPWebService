@@ -13,9 +13,6 @@ namespace DatabaseUpdater
 {
     static class Updater
     {
-        const string block_IP_File_Header = "network,geoname_id,registered_country_geoname_id,represented_country_geoname_id,is_anonymous_proxy,is_satellite_provider,postal_code,latitude,longitude,accuracy_radius";
-        const string location_File_Header = "geoname_id,locale_code,continent_code,continent_name,country_iso_code,country_name,subdivision_1_iso_code,subdivision_1_name,subdivision_2_iso_code,subdivision_2_name,city_name,metro_code,time_zone,is_in_european_union";
-        
         //Обновляет базу.
         public static bool DatabaseUpdate(string connectionString, string blockIPv4FileName, string blockIPv6FileName, 
             string locationFileName)
@@ -23,6 +20,7 @@ namespace DatabaseUpdater
             DateTime start, startNew, finish;
             bool resultLoc = false;
             bool resultBlockv4 = false;
+            bool resultBlockv6 = false;
             start = DateTime.Now;
             Console.WriteLine($"Start update operations now: {start}");
 
@@ -45,13 +43,19 @@ namespace DatabaseUpdater
                 resultBlockv4 = BatchUpdateDbTable(connectionString, "\"Blocks_IPv4\"", blockIPv4FileName);
                 finish = DateTime.Now;
                 Console.WriteLine($"Blocks IP v4 update complete at: {finish - startNew}");
+
+                startNew = DateTime.Now;
+                Console.WriteLine($"Start update blocks IP v6: {startNew}");
+                resultBlockv6 = BatchUpdateDbTable(connectionString, "\"Blocks_IPv6\"", blockIPv6FileName);
+                finish = DateTime.Now;
+                Console.WriteLine($"Blocks IP v6 update complete at: {finish - startNew}");
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
             }
 
-            bool result = resultLoc && resultBlockv4;
+            bool result = resultLoc && resultBlockv4 && resultBlockv6;
             finish = DateTime.Now;
             Console.WriteLine(value: $"{(result ? "Database update compleate at: " : "An error occurred while updating database: ")} " +
                 $"{finish - start}");
@@ -164,6 +168,8 @@ namespace DatabaseUpdater
             {
                 connection.Open();
                 NpgsqlCommand clearTable = new NpgsqlCommand("TRUNCATE TABLE \"Blocks_IPv4\"", connection); //truncate практически мгновенно очищает таблицу.
+                clearTable.ExecuteNonQuery();
+                clearTable = new NpgsqlCommand("TRUNCATE TABLE \"Blocks_IPv6\"", connection);
                 clearTable.ExecuteNonQuery();
                 clearTable = new NpgsqlCommand("DELETE FROM \"CityLocations\"", connection); //delete работает гораздо медленее чем truncate, но truncate нельзя применять к таблицам, на которые ссылается внешний ключ. 
                 clearTable.ExecuteNonQuery();
