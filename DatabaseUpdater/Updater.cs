@@ -62,6 +62,13 @@ namespace DatabaseUpdater
             return result;
         }
 
+        //Удаляет базу и пересоздаёт её заново с пустыми таблицами.
+        public static void DatabaseRebuild(GeoIPDbContext dbContext)
+        {
+            dbContext.Database.EnsureDeleted();
+            dbContext.Database.EnsureCreated();
+        }
+
         //Проверяет наличие новых обновлений на сервере. (+)
         public static bool CheckUpdate(UpdateInfo lastUpdate, string md5Url, out string message)
         {
@@ -121,7 +128,6 @@ namespace DatabaseUpdater
                 connectionString = connectionString + "; Pooling=false; Keepalive=30;"; //Если строк в таблице очень много (более 250 000), writer.Close() не хватает стандартного времени до закрытия connection.
                 timer.Start();
 
-
                 using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
@@ -141,10 +147,10 @@ namespace DatabaseUpdater
                             }
                         }
                         timer.Stop();
-                        Console.WriteLine($"{rowCount} rows complete. (100%)");
+                        Console.WriteLine($"{rowCount} rows from {allRowsCount} complete. (100%)");
                         DateTime start = DateTime.Now; 
                         Console.WriteLine("Commit data to server...");
-                        writer.Close(); //"Exeption while reading from stream", if DataTable have to many rows and "Keepalive=default" in connectionString. See line 117. 
+                        writer.Close(); //"Exeption while reading from stream", if DataTable have to many rows and "Keepalive=default" in connectionString. See line 128. 
                         DateTime finish = DateTime.Now;
                         Console.WriteLine($"Complete at: {finish - start}");
                         result = true;

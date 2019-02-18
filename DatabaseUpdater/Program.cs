@@ -28,16 +28,50 @@ namespace DatabaseUpdater
                 {
                     using (GeoIPDbContext db = new GeoIPDbContext(config.ConnectionString))
                     {
-                        Console.WriteLine("Подключение к базе...");
-                        var dbCreated = db.Database.EnsureCreated();
-                        Console.WriteLine($"Подключение установлено: {db.Database.ProviderName}");
-                        if (CheckUpdates(db, config))
+                        if (args.Length > 0) // Проверяем наличие аргументов коммандной строки.
                         {
-                            Console.WriteLine("Обновить сейчас? (y/n)");
-                            int answ = Console.Read();
-                            if (answ == 'y' || answ == 'Y')
+                            for (int i = 0; i < args.Length; i++)
                             {
-                                DoOperations(db, config);
+                                args[i] = args[i].ToLower();
+                            }
+                            switch (args[0])
+                            {
+                                case "/r":
+                                    if (args.Length > 1 && args[1] == "/u" && CheckUpdates(db, config))
+                                    {
+                                        DoOperations(db, config, true); //rebuild database and update. args: /r /u
+                                    }
+                                    else Updater.DatabaseRebuild(db); //rebuild only. args: /r
+                                    break;
+
+                                case "/u":
+                                    if (CheckUpdates(db, config))
+                                    {
+                                        DoOperations(db, config); //update database without prompt. args: /u
+                                    }
+                                    break;
+
+                                default:
+                                    Console.Write("Unknown arguments: ");
+                                    for (int i = 0; i < args.Length; i++)
+                                    {
+                                        Console.Write($"{args[i]} ");
+                                    }
+                                    Console.WriteLine("\nCommand line parameters: /r - rebuild database, /r /u - rebuild and " +
+                                        "update, /u - update only, without params - check update and ask.");
+                                    break;
+                            }
+                        }
+                        else // Аргументы коммандной строки отсутствуют. Проверяем наличие обновлений и спрашиваем у пользователя.
+                        {
+                            if (CheckUpdates(db, config))
+                            {
+                                Console.WriteLine("Обновить сейчас? (y/n)");
+                                int answ = Console.Read();
+                                if (answ == 'y' || answ == 'Y')
+                                {
+                                    DoOperations(db, config);
+                                }
                             }
                         }
                     }
@@ -112,7 +146,7 @@ namespace DatabaseUpdater
             return config;
         }
 
-        static void DoOperations(GeoIPDbContext dbContext, Config config)
+        static void DoOperations(GeoIPDbContext dbContext, Config config, bool rebuild = false)
         {
             DateTime start = DateTime.Now;
             DateTime finish;
@@ -168,11 +202,15 @@ namespace DatabaseUpdater
             //install updates;
             startNext = DateTime.Now;
             Console.WriteLine($"Установка обновлений: {startNext}");
+            if (rebuild)
+            {
+                Updater.DatabaseRebuild(dbContext);
+            }
             bool updRes = Updater.DatabaseUpdate(config.ConnectionString, blocksIPv4FileName, blocksIPv6FileName, locationsFileName);
             if (updRes)
             {
                 dbContext.Updates.Add(new Database.Models.UpdateInfo { Hash = md5Hash, DateTime = DateTime.Now });
-                dbContext.SaveChanges();
+                dbContext.SaveChanges(); //??
             }
             finish = DateTime.Now;
             Console.WriteLine($"{(updRes ? "Установка успешно завершена: " : "Установка завершена с ошибками: ")} " +
